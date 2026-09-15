@@ -5,16 +5,17 @@ import matplotlib.pyplot as plt
 import random
 import time
 import math
+from datetime import datetime, timedelta
 
 # --- Page Configuration ---
 st.set_page_config(
-    page_title="ID Fan Digital Twin",
+    page_title="ID Fan Digital Twin & Predictive Maintenance",
     page_icon="⚙️",
     layout="wide"
 )
 
-st.title("⚙️ Thermal Power Plant ID Fan - Digital Twin Simulator")
-st.markdown("Real-time telemetry, aerodynamic degradation, and dynamic physics simulation.")
+st.title("⚙️ Thermal Power Plant ID Fan - Digital Twin & Predictive Maintenance")
+st.markdown("Real-time telemetry, failure prognosis (RUL), and automated prescriptive maintenance actions.")
 
 # --- Session State Initialization ---
 if "history" not in st.session_state:
@@ -36,7 +37,7 @@ st.sidebar.header("⚠️ Fault Injections & Wear")
 blade_health = st.sidebar.slider("Blade Health (Erosion / Ash Load %)", min_value=20, max_value=100, value=100, step=5)
 bearing_health = st.sidebar.slider("Bearing Condition (%)", min_value=10, max_value=100, value=100, step=5)
 
-# --- Update Rotation Angle for Dynamic Animation ---
+# Update Rotation Angle
 st.session_state.rotation_angle = (st.session_state.rotation_angle + (speed_rpm / 100.0) * 15) % 360
 
 # --- Physics & Telemetry Calculation Engine ---
@@ -59,7 +60,28 @@ flow, draft, power, current, vibration = calculate_telemetry(
     speed_rpm, damper_pct, flue_gas_temp, blade_health, bearing_health
 )
 
-# Append data point
+# --- Predictive Maintenance & RUL Physics Engine ---
+def estimate_rul_and_maintenance(bearing_h, blade_h, speed, temp):
+    # Minimum health dictates system failure prognosis
+    limiting_health = min(bearing_h, blade_h)
+    
+    # Stress factors (higher speed & temp accelerate degradation rate)
+    speed_factor = (speed / 980.0) ** 1.5
+    temp_factor = 1.0 + (max(0, temp - 145.0) / 100.0)
+    degradation_rate_per_day = 0.35 * speed_factor * temp_factor  # Base 0.35% health loss/day under standard ops
+    
+    # Remaining Useful Life (RUL) calculation to 20% failure threshold
+    health_margin = max(0.0, limiting_health - 20.0)
+    rul_days = int(health_margin / degradation_rate_per_day) if degradation_rate_per_day > 0 else 999
+    
+    # Next Maintenance Date
+    next_maint_date = datetime.now() + timedelta(days=rul_days)
+    
+    return rul_days, next_maint_date
+
+rul_days, next_maint_date = estimate_rul_and_maintenance(bearing_health, blade_health, speed_rpm, flue_gas_temp)
+
+# Append to history buffer
 new_row = pd.DataFrame([{
     "Draft_mmWC": draft,
     "Power_kW": power,
@@ -67,14 +89,14 @@ new_row = pd.DataFrame([{
 }])
 st.session_state.history = pd.concat([st.session_state.history, new_row], ignore_index=True).tail(50)
 
-# --- Top Dashboard Metrics ---
+# --- Top Telemetry Dashboard Metrics ---
 col1, col2, col3, col4 = st.columns(4)
 col1.metric("Flow Rate", f"{flow:,.0f} m³/h")
 col2.metric("Furnace Draft", f"{draft:.1f} mmWC")
 col3.metric("Motor Power", f"{power:.1f} kW", f"{current:.1f} A")
 
 if vibration > 7.1:
-    col4.metric("Vibration RMS", f"{vibration:.2f} mm/s", "🚨 Danger", delta_color="inverse")
+    col4.metric("Vibration RMS", f"{vibration:.2f} mm/s", "🚨 Critical", delta_color="inverse")
 elif vibration > 4.5:
     col4.metric("Vibration RMS", f"{vibration:.2f} mm/s", "⚠️ Warning", delta_color="off")
 else:
@@ -82,13 +104,27 @@ else:
 
 st.markdown("---")
 
-# --- Dynamic SVG Diagram Rendering Function ---
+# --- Prognostics & Predictive Maintenance Panel ---
+st.subheader("🔮 Predictive Maintenance & Asset Health (RUL)")
+p_col1, p_col2, p_col3 = st.columns(3)
+
+p_col1.metric("Remaining Useful Life (RUL)", f"{rul_days} Days")
+p_col2.metric("Next Maintenance Date", next_maint_date.strftime("%b %d, %Y"))
+
+if rul_days < 15:
+    p_col3.error("Status: Immediate Shutdown Required")
+elif rul_days < 45:
+    p_col3.warning("Status: Maintenance Recommended Soon")
+else:
+    p_col3.success("Status: Asset Health Nominal")
+
+st.markdown("---")
+
+# --- Dynamic SVG Diagram Rendering ---
 def render_fan_svg(angle, damper_val, vib_val, temp_val):
-    # Dynamic Colors based on alerts
     bearing_color = "#28a745" if vib_val < 4.5 else ("#ffc107" if vib_val < 7.1 else "#dc3545")
-    damper_angle = (1.0 - (damper_val / 100.0)) * 75  # Damper blade angle in deg
+    damper_angle = (1.0 - (damper_val / 100.0)) * 75
     
-    # Generate 8 fan impeller blades rotated around center (200, 180)
     blade_svg_elements = ""
     for i in range(8):
         b_angle = angle + (i * 45)
@@ -97,7 +133,6 @@ def render_fan_svg(angle, damper_val, vib_val, temp_val):
         y2 = 180 + 75 * math.sin(rad)
         blade_svg_elements += f'<line x1="200" y1="180" x2="{x2:.1f}" y2="{y2:.1f}" stroke="#00d2ff" stroke-width="6" stroke-linecap="round"/>'
 
-    # Generate Damper Vane lines
     damper_lines = ""
     for y_pos in [130, 155, 180, 205, 230]:
         rad_d = math.radians(damper_angle)
@@ -123,70 +158,80 @@ def render_fan_svg(angle, damper_val, vib_val, temp_val):
             </filter>
         </defs>
 
-        <!-- Background grid details -->
         <rect x="10" y="10" width="760" height="320" rx="10" fill="#111418" stroke="#2d3436" stroke-width="2"/>
-
-        <!-- Inlet Duct -->
         <rect x="30" y="110" width="100" height="140" fill="none" stroke="#718093" stroke-width="4" stroke-dasharray="8 4"/>
         <text x="40" y="95" fill="#a4b0be" font-size="12" font-family="sans-serif" font-weight="bold">INLET DUCT</text>
 
-        <!-- Inlet Guide Vanes (IGV / Damper) -->
         <g>
             {damper_lines}
             <text x="45" y="270" fill="#ff9f43" font-size="11" font-family="sans-serif">IGV Damper ({damper_val:.0f}%)</text>
         </g>
 
-        <!-- Flue Gas Flow Arrows -->
-        <path d="M 35 150 Q 120 150 160 180" fill="none" stroke="url(#gasFlow)" stroke-width="8" marker-end="url(#arrow)" />
+        <path d="M 35 150 Q 120 150 160 180" fill="none" stroke="url(#gasFlow)" stroke-width="8"/>
         <path d="M 35 210 Q 120 210 160 180" fill="none" stroke="url(#gasFlow)" stroke-width="8" />
         <path d="M 230 110 Q 300 40 450 40 L 520 40" fill="none" stroke="url(#gasFlow)" stroke-width="12" filter="url(#glow)"/>
 
-        <!-- Scroll / Volute Casing -->
         <path d="M 170 80 C 100 80 100 280 200 280 C 310 280 310 40 450 40 L 450 110 C 260 110 260 210 200 210 C 170 210 170 150 200 130" fill="#2c3e50" stroke="#718093" stroke-width="4" opacity="0.85"/>
         <text x="210" y="305" fill="#a4b0be" font-size="13" font-family="sans-serif" font-weight="bold">VOLUTE CASING</text>
 
-        <!-- Fan Impeller / Blades (Dynamic Rotated) -->
         <circle cx="200" cy="180" r="82" fill="none" stroke="#485460" stroke-width="3" stroke-dasharray="4 4"/>
         {blade_svg_elements}
         <circle cx="200" cy="180" r="22" fill="#dcdde1" stroke="#2f3640" stroke-width="4"/>
 
-        <!-- Drive Shaft -->
         <rect x="220" y="172" width="220" height="16" fill="#718093" stroke="#2f3640" stroke-width="2"/>
         <text x="290" y="165" fill="#a4b0be" font-size="11" font-family="sans-serif">DRIVE SHAFT</text>
 
-        <!-- Bearing Pedestal Unit -->
         <rect x="330" y="150" width="50" height="60" rx="5" fill="{bearing_color}" stroke="#ffffff" stroke-width="2" filter="url(#glow)"/>
         <text x="335" y="185" fill="#ffffff" font-size="11" font-family="sans-serif" font-weight="bold">BEARING</text>
-        <text x="325" y="230" fill="{bearing_color}" font-size="11" font-family="sans-serif">Vib: {vib_val:.2f} mm/s</text>
 
-        <!-- Electric Motor Drive -->
         <rect x="440" y="130" width="130" height="100" rx="8" fill="#2e86de" stroke="#10ac84" stroke-width="3"/>
-        <!-- Motor Fins -->
         <line x1="460" y1="130" x2="460" y2="230" stroke="#54a0ff" stroke-width="3"/>
         <line x1="490" y1="130" x2="490" y2="230" stroke="#54a0ff" stroke-width="3"/>
         <line x1="520" y1="130" x2="520" y2="230" stroke="#54a0ff" stroke-width="3"/>
         <text x="455" y="175" fill="#ffffff" font-size="13" font-family="sans-serif" font-weight="bold">HV MOTOR</text>
         <text x="455" y="195" fill="#c8d6e5" font-size="11" font-family="sans-serif">{speed_rpm:.0f} RPM</text>
 
-        <!-- Outlet Duct -->
         <rect x="450" y="25" width="280" height="85" fill="none" stroke="#718093" stroke-width="4"/>
         <path d="M 470 65 L 700 65" stroke="#00d2ff" stroke-width="6" stroke-dasharray="15 10" filter="url(#glow)"/>
         <text x="560" y="55" fill="#a4b0be" font-size="12" font-family="sans-serif" font-weight="bold">TO CHIMNEY / ESP</text>
-        <text x="560" y="85" fill="#ff9f43" font-size="11" font-family="sans-serif">Temp: {temp_val:.0f} °C</text>
     </svg>
     </div>
     """
     return svg_code
 
-# --- Display Interactive SVG Graphic ---
-st.subheader("🖥️ Interactive Digital Twin Schematic Diagram")
+st.subheader("🖥️ Dynamic Digital Twin Schematic")
 st.components.v1.html(
     render_fan_svg(st.session_state.rotation_angle, damper_pct, vibration, flue_gas_temp), 
     height=370
 )
 
-# --- Real-Time Trend Charts ---
-st.subheader("📊 Dynamic Telemetry Trends")
+# --- Prescriptive Action Recommendations ---
+st.subheader("🛠️ Prescriptive Action Plan (Condition Improvement)")
+
+rec_col1, rec_col2 = st.columns(2)
+
+with rec_col1:
+    st.markdown("**Bearing & Mechanical Integrity**")
+    if bearing_health < 50:
+        st.error("• **High Priority**: Immediate bearing overhaul required. Check lube oil supply lines and replace worn sleeve/anti-friction bearings during next shutdown.")
+    elif bearing_health < 80:
+        st.warning("• **Moderate Action**: Schedule lube oil filter flushing and execute dynamic shaft re-alignment at 1.0x RPM frequency.")
+    else:
+        st.success("• **Routine**: Bearing health optimal. Maintain standard 500-hour lube oil replenishment cycle.")
+
+with rec_col2:
+    st.markdown("**Impeller & Aerodynamic Efficiency**")
+    if blade_health < 50:
+        st.error("• **High Priority**: Severe blade erosion / heavy ash buildup detected. Initiate high-pressure soot blowing, execute hard-facing weld buildup, or replace wear liners.")
+    elif blade_health < 80:
+        st.warning("• **Moderate Action**: Schedule soot blowing cycle to clear ash deposits from impeller blades and balance the rotor statically.")
+    else:
+        st.success("• **Routine**: Blade aerodynamics operating within design limits. Maintain soot blowing schedules.")
+
+st.markdown("---")
+
+# --- Dynamic Telemetry Trends ---
+st.subheader("📊 Live Telemetry Trends")
 
 fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(10, 6), sharex=True)
 
