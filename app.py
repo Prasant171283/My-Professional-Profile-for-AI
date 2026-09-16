@@ -15,17 +15,32 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- Custom CSS for Ultra-Compact One-Page Dashboard ---
+# --- Custom CSS for High-Contrast Metric Readability ---
 st.markdown("""
     <style>
         .block-container { padding-top: 1rem; padding-bottom: 0rem; padding-left: 1.5rem; padding-right: 1.5rem; }
-        h1 { margin-bottom: 0px !important; font-size: 1.6rem !important; }
+        h1 { margin-bottom: 0px !important; font-size: 1.6rem !important; color: #ffffff !important; }
         .stMarkdown p { margin-bottom: 0.2rem !important; font-size: 0.85rem !important; }
-        div[data-testid="stMetric"] { background-color: #1e2227; padding: 6px 12px; border-radius: 8px; border: 1px solid #2d3436; }
-        div[data-testid="stMetricLabel"] { font-size: 0.75rem !important; }
-        div[data-testid="stMetricValue"] { font-size: 1.1rem !important; }
+        
+        /* Metric Card Styling - Bright Text & High Contrast */
+        div[data-testid="stMetric"] { 
+            background-color: #1a2332 !important; 
+            padding: 8px 12px !important; 
+            border-radius: 8px !important; 
+            border: 1.5px solid #00d2ff !important; 
+        }
+        div[data-testid="stMetricLabel"] { 
+            font-size: 0.85rem !important; 
+            color: #a4b0be !important; 
+            font-weight: 600 !important;
+        }
+        div[data-testid="stMetricValue"] { 
+            font-size: 1.2rem !important; 
+            color: #ffffff !important; 
+            font-weight: bold !important;
+        }
         .stAlert { padding: 4px 8px !important; margin-bottom: 0px !important; font-size: 0.8rem !important; }
-        hr { margin: 8px 0px !important; }
+        hr { margin: 8px 0px !important; border-color: #2d3436 !important; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -39,7 +54,7 @@ if "rotation_angle" not in st.session_state:
     st.session_state.rotation_angle = 0
 
 # --- Sidebar Controls ---
-st.sidebar.header("🕹️ Controls")
+st.sidebar.header("🕹️ Operational Controls")
 speed_rpm = st.sidebar.slider("Fan Speed (RPM)", 300, 1200, 980, 10)
 damper_pct = st.sidebar.slider("Damper / IGV (%)", 0, 100, 75, 1)
 flue_gas_temp = st.sidebar.slider("Flue Gas Temp (°C)", 90, 220, 145, 1)
@@ -84,13 +99,13 @@ next_maint_date = datetime.now() + timedelta(days=rul_days)
 new_row = pd.DataFrame([{"Draft_mmWC": draft, "Power_kW": power, "Vibration_mms": vibration}])
 st.session_state.history = pd.concat([st.session_state.history, new_row], ignore_index=True).tail(35)
 
-# --- Top Header Metrics Bar ---
+# --- Top Metrics Header (Bright Colors) ---
 m1, m2, m3, m4, m5, m6 = st.columns(6)
 m1.metric("Flow Rate", f"{flow:,.0f} m³/h")
 m2.metric("Furnace Draft", f"{draft:.1f} mmWC")
 m3.metric("Motor Power", f"{power:.1f} kW")
 m4.metric("Current", f"{current:.1f} A")
-m5.metric("Remaining Useful Life", f"{rul_days} Days")
+m5.metric("Useful Life (RUL)", f"{rul_days} Days")
 m6.metric("Next Maintenance", next_maint_date.strftime("%b %d, %Y"))
 
 st.markdown("---")
@@ -98,9 +113,9 @@ st.markdown("---")
 # --- Main Dashboard (Two-Column Layout) ---
 col_left, col_right = st.columns([1.1, 0.9])
 
-# --- LEFT COLUMN: Dynamic Graphic & Prescriptive Actions ---
+# --- LEFT COLUMN: Dynamic Visual Graphic ---
 with col_left:
-    st.markdown("**🖥️ Digital Twin Live Schematic**")
+    st.markdown("<span style='color:#00d2ff; font-weight:bold;'>🖥️ Digital Twin Schematic Diagram</span>", unsafe_allow_html=True)
     
     def render_fan_svg(angle, damper_val, vib_val):
         bearing_color = "#28a745" if vib_val < 4.5 else ("#ffc107" if vib_val < 7.1 else "#dc3545")
@@ -119,32 +134,34 @@ with col_left:
             damper_lines += f'<line x1="{60-dx:.1f}" y1="{y_pos-dy:.1f}" x2="{60+dx:.1f}" y2="{y_pos+dy:.1f}" stroke="#ff9f43" stroke-width="3"/>'
 
         return f"""
-        <div style="display:flex; justify-content:center; background:#12161a; border-radius:8px; border:1px solid #2d3436; padding:5px;">
+        <div style="display:flex; justify-content:center; background:#12161a; border-radius:8px; border:1px solid #00d2ff; padding:5px;">
         <svg width="100%" height="240" viewBox="0 0 650 280" xmlns="http://www.w3.org/2000/svg">
-            <rect x="20" y="90" width="80" height="120" fill="none" stroke="#718093" stroke-width="3" stroke-dasharray="6 3"/>
+            <rect x="20" y="90" width="80" height="120" fill="none" stroke="#00d2ff" stroke-width="2" stroke-dasharray="6 3"/>
+            <text x="25" y="80" fill="#ffffff" font-size="12" font-family="sans-serif" font-weight="bold">INLET DUCT</text>
             {damper_lines}
             <path d="M 150 70 C 90 70 90 230 180 230 C 260 230 260 30 380 30 L 380 90 C 230 90 230 170 180 170 C 150 170 150 130 180 110" fill="#2c3e50" stroke="#718093" stroke-width="3"/>
-            <circle cx="180" cy="150" r="65" fill="none" stroke="#485460" stroke-width="2" stroke-dasharray="4 4"/>
+            <circle cx="180" cy="150" r="65" fill="none" stroke="#ffffff" stroke-width="1.5" stroke-dasharray="4 4"/>
             {blade_svg}
             <circle cx="180" cy="150" r="16" fill="#dcdde1" stroke="#2f3640" stroke-width="3"/>
             <rect x="196" y="143" width="180" height="14" fill="#718093" stroke="#2f3640"/>
             <rect x="290" y="125" width="45" height="50" rx="4" fill="{bearing_color}" stroke="#fff" stroke-width="2"/>
+            <text x="293" y="115" fill="#ffffff" font-size="11" font-family="sans-serif" font-weight="bold">BEARING</text>
             <rect x="380" y="110" width="110" height="80" rx="6" fill="#2e86de" stroke="#10ac84" stroke-width="2"/>
-            <text x="395" y="152" fill="#fff" font-size="12" font-family="sans-serif" font-weight="bold">HV MOTOR</text>
-            <rect x="380" y="20" width="230" height="70" fill="none" stroke="#718093" stroke-width="3"/>
-            <text x="440" y="55" fill="#a4b0be" font-size="12" font-family="sans-serif" font-weight="bold">TO ESP / CHIMNEY</text>
+            <text x="395" y="152" fill="#ffffff" font-size="12" font-family="sans-serif" font-weight="bold">HV MOTOR</text>
+            <rect x="380" y="20" width="230" height="70" fill="none" stroke="#00d2ff" stroke-width="2"/>
+            <text x="430" y="55" fill="#ffffff" font-size="12" font-family="sans-serif" font-weight="bold">TO ESP / CHIMNEY</text>
         </svg>
         </div>
         """
 
     st.components.v1.html(render_fan_svg(st.session_state.rotation_angle, damper_pct, vibration), height=250)
 
-    # Prescriptive Actions (Compact Box)
-    st.markdown("**🛠️ Prescriptive Action Plan**")
+    # Prescriptive Actions (High Contrast Text)
+    st.markdown("<span style='color:#00d2ff; font-weight:bold;'>🛠️ Prescriptive Action Plan</span>", unsafe_allow_html=True)
     act1, act2 = st.columns(2)
     with act1:
         if bearing_health < 50:
-            st.error("Bearing: Critical wear. Schedule immediate sleeve replacement.")
+            st.error("Bearing: Critical wear. Schedule sleeve replacement.")
         elif bearing_health < 80:
             st.warning("Bearing: Flush lube oil & check alignment.")
         else:
@@ -157,29 +174,32 @@ with col_left:
         else:
             st.success("Blades: Aerodynamics nominal.")
 
-# --- RIGHT COLUMN: Real-Time Telemetry Trends ---
+# --- RIGHT COLUMN: Real-Time Telemetry Trends (High-Contrast Matplotlib Plots) ---
 with col_right:
-    st.markdown("**📊 Live Telemetry Trends**")
+    st.markdown("<span style='color:#00d2ff; font-weight:bold;'>📊 Live Telemetry Trends</span>", unsafe_allow_html=True)
     
     fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(6, 4.2), sharex=True)
     fig.patch.set_facecolor('#0e1117')
 
     for ax in (ax1, ax2, ax3):
         ax.set_facecolor('#161b22')
-        ax.tick_params(colors='white', labelsize=7)
-        ax.xaxis.label.set_color('white')
-        ax.yaxis.label.set_color('white')
-        ax.grid(True, linestyle="--", alpha=0.3, color="#8b949e")
+        ax.tick_params(colors='#ffffff', labelsize=8)
+        ax.xaxis.label.set_color('#ffffff')
+        ax.yaxis.label.set_color('#ffffff')
+        ax.grid(True, linestyle="--", alpha=0.4, color="#546e7a")
 
-    ax1.plot(st.session_state.history["Draft_mmWC"].values, color="#ff4d4d", lw=1.5)
-    ax1.set_ylabel("Draft (mmWC)", fontsize=8)
+    # Plot 1: Furnace Draft
+    ax1.plot(st.session_state.history["Draft_mmWC"].values, color="#ff4d4d", lw=2)
+    ax1.set_ylabel("Draft (mmWC)", fontsize=9, color="#ff4d4d", weight="bold")
 
-    ax2.plot(st.session_state.history["Power_kW"].values, color="#1e90ff", lw=1.5)
-    ax2.set_ylabel("Power (kW)", fontsize=8)
+    # Plot 2: Power Draw
+    ax2.plot(st.session_state.history["Power_kW"].values, color="#00d2ff", lw=2)
+    ax2.set_ylabel("Power (kW)", fontsize=9, color="#00d2ff", weight="bold")
 
-    ax3.plot(st.session_state.history["Vibration_mms"].values, color="#ffa500", lw=1.5)
-    ax3.set_ylabel("Vib (mm/s)", fontsize=8)
-    ax3.set_xlabel("Time Step Buffer", fontsize=8)
+    # Plot 3: Bearing Vibration
+    ax3.plot(st.session_state.history["Vibration_mms"].values, color="#ff9f43", lw=2)
+    ax3.set_ylabel("Vib (mm/s)", fontsize=9, color="#ff9f43", weight="bold")
+    ax3.set_xlabel("Time Step Buffer", fontsize=8, color="#ffffff")
 
     plt.tight_layout(pad=0.5)
     st.pyplot(fig)
