@@ -20,10 +20,7 @@ st.set_page_config(
 # --- Custom CSS: Fixed Spacing & Corporate Styling ---
 st.markdown("""
     <style>
-        /* Hide default Streamlit header bar space */
         header[data-testid="stHeader"] { height: 0px !important; background: transparent !important; }
-
-        /* Soft ice-blue background with proper top margin */
         .stApp { background-color: #e6eff8 !important; }
         .block-container { 
             padding-top: 2.2rem !important; 
@@ -31,19 +28,15 @@ st.markdown("""
             padding-left: 1.5rem !important; 
             padding-right: 1.5rem !important; 
         }
-        
-        /* Force Header & Title Text Visibility */
         h1, h2, h3, .stApp h1, .stApp h2, .stApp h3 { 
             color: #0b2545 !important; 
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif !important;
         }
-        
         .stMarkdown p, .stMarkdown span { 
             margin-bottom: 0.2rem !important; 
             font-size: 0.85rem !important; 
             color: #1e293b !important; 
         }
-        
         .stAlert { padding: 4px 8px !important; margin-bottom: 0px !important; font-size: 0.8rem !important; }
         hr { margin: 8px 0px !important; border-color: #cbd5e1 !important; }
         div[data-testid="stHorizontalBlock"] { align-items: stretch !important; }
@@ -152,33 +145,30 @@ def ask_gemini_backend(query):
         - Projected Maintenance Date: {next_maint_date.strftime('%B %d, %Y')}
         """
         
-        # Primary: Dynamic alias pointing to the active Flash production model
-        model_name = "gemini-flash-latest"
-        
-        try:
-            response = client.models.generate_content(
-                model=model_name,
-                contents=query,
-                config=types.GenerateContentConfig(
-                    system_instruction=system_instruction,
-                    temperature=0.3,
-                )
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=query,
+            config=types.GenerateContentConfig(
+                system_instruction=system_instruction,
+                temperature=0.3,
             )
-            return response.text
-        except Exception:
-            # Fallback for standard free-tier endpoints
-            response = client.models.generate_content(
-                model="gemini-1.5-flash",
-                contents=query,
-                config=types.GenerateContentConfig(
-                    system_instruction=system_instruction,
-                    temperature=0.3,
-                )
-            )
-            return response.text
+        )
+        return response.text
 
     except Exception as e:
-        return f"🚨 **Error contacting Gemini backend:** {str(e)}"
+        try:
+            response = client.models.generate_content(
+                model="gemini-2.5-pro",
+                contents=query,
+                config=types.GenerateContentConfig(
+                    system_instruction=system_instruction,
+                    temperature=0.3,
+                )
+            )
+            return response.text
+        except Exception as fallback_e:
+            return f"🚨 **Error contacting Gemini backend:** {str(fallback_e)}"
+
 # --- Custom Metric Card Generator ---
 def custom_metric_card(icon_svg, icon_bg, label, value, unit, subtext):
     return f"""
@@ -353,7 +343,6 @@ with tab_chat:
     st.markdown("<h3 style='color:#0b2545 !important; font-weight:800; font-size:1.1rem;'>💬 ID Fan AI Technical Assistant (Gemini Backend)</h3>", unsafe_allow_html=True)
     st.caption("Ask contextual questions regarding real-time telemetry, fan mechanics, power reduction strategies, or failure troubleshooting.")
 
-    # Render Chat History
     for msg in st.session_state.chat_messages:
         with st.chat_message(msg["role"]):
             st.markdown(msg["content"])
