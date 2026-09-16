@@ -6,6 +6,8 @@ import random
 import time
 import math
 from datetime import datetime, timedelta
+from google import genai
+from google.genai import types
 
 # --- Single Page Compact Layout ---
 st.set_page_config(
@@ -15,13 +17,10 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- Custom CSS: Fixed Spacing & Styling ---
+# --- Custom CSS Spacing & Styling ---
 st.markdown("""
     <style>
-        /* Hide default Streamlit header bar space */
         header[data-testid="stHeader"] { height: 0px !important; background: transparent !important; }
-
-        /* Soft ice-blue background with proper top margin */
         .stApp { background-color: #e6eff8 !important; }
         .block-container { 
             padding-top: 2.2rem !important; 
@@ -29,19 +28,15 @@ st.markdown("""
             padding-left: 1.5rem !important; 
             padding-right: 1.5rem !important; 
         }
-        
-        /* Force Header & Title Text Visibility */
         h1, h2, h3, .stApp h1, .stApp h2, .stApp h3 { 
             color: #0b2545 !important; 
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif !important;
         }
-        
         .stMarkdown p, .stMarkdown span { 
             margin-bottom: 0.2rem !important; 
             font-size: 0.85rem !important; 
             color: #1e293b !important; 
         }
-        
         .stAlert { padding: 4px 8px !important; margin-bottom: 0px !important; font-size: 0.8rem !important; }
         hr { margin: 8px 0px !important; border-color: #cbd5e1 !important; }
         div[data-testid="stHorizontalBlock"] { align-items: stretch !important; }
@@ -60,7 +55,7 @@ if "rotation_angle" not in st.session_state:
 
 if "chat_messages" not in st.session_state:
     st.session_state.chat_messages = [
-        {"role": "assistant", "content": "👋 Hello! I am your ID Fan Virtual Assistant. Ask me anything about current telemetry, how to reduce motor current, vibration limits, or operational troubleshooting."}
+        {"role": "assistant", "content": "👋 Hello! I am powered by **Google Gemini**. Ask me any technical, diagnostic, or operational question about your ID Fan!"}
     ]
 
 # --- Sidebar Controls ---
@@ -121,99 +116,52 @@ next_maint_date = datetime.now() + timedelta(days=rul_days)
 new_row = pd.DataFrame([{"Draft_mmWC": draft, "Power_kW": power, "Vibration_mms": vibration}])
 st.session_state.history = pd.concat([st.session_state.history, new_row], ignore_index=True).tail(35)
 
-# --- Advanced AI Diagnostic Assistant ---
-def get_ai_response(query):
-    q = query.lower()
+# --- Gemini API Backend AI Response Function ---
+def ask_gemini_backend(query):
+    # Retrieve API key from Streamlit Secrets
+    api_key = st.secrets.get("GEMINI_API_KEY", None)
     
-    # Question Intent: How to reduce / lower motor current or power draw
-    if any(phrase in q for phrase in ["how to reduce current", "how to lower current", "reduce motor current", "lower current", "reduce power", "decrease current", "cut current"]):
-        return (
-            f"⚡ **Prescriptive Guide: How to Reduce ID Fan Motor Current (Currently at {current:.1f} A / {power:.1f} kW)**\n\n"
-            f"To reduce electrical load on the High Voltage (6.6 kV) motor, implement these operational steps:\n\n"
-            f"1. **Reduce Fan Speed (RPM)**: Power draw follows Fan Affinity Laws ($P \\propto N^3$). Lowering fan speed from **{speed_rpm:.0f} RPM** via VFD yields cubic power savings.\n"
-            f"2. **Throttle Inlet Guide Vanes (IGV / Damper)**: Closing the inlet damper from **{damper_pct:.0f}%** reduces volumetric gas flow rate ($m^3/h$) and mechanical load.\n"
-            f"3. **Clean Impeller Blades**: Blade erosion/ash accumulation is currently at **{100 - blade_health:.0f}% wear**. Deposition increases drag; soot blowing restores aerodynamic efficiency.\n"
-            f"4. **Optimize Flue Gas Temperature**: Current temp is **{flue_gas_temp:.0f} °C**. Cooler flue gas increases gas density, improving fan head generation per unit power."
-        )
+    if not api_key:
+        return "⚠️ **API Key Missing**: Please set `GEMINI_API_KEY` in Streamlit secrets to enable Gemini AI."
 
-    # Question Intent: How to reduce vibration
-    elif any(phrase in q for phrase in ["reduce vibration", "lower vibration", "fix vibration", "high vibration", "stop vibration"]):
-        return (
-            f"🔊 **Prescriptive Guide: How to Reduce Bearing Vibration (Currently at {vibration:.2f} mm/s RMS)**\n\n"
-            f"1. **Dynamic Balancing**: Perform 2-plane dynamic rotor balancing to neutralize mechanical unbalance.\n"
-            f"2. **Shaft Realignment**: Check laser alignment between motor drive shaft and fan shaft.\n"
-            f"3. **Bearing Lubrication**: Replace degraded lube oil and flush bearing sleeves (Estimated Bearing Health: **{bearing_health:.0f}%**).\n"
-            f"4. **Inspect Wear Liners**: Inspect impeller blades for uneven fly-ash erosion."
-        )
-
-    # Question Intent: Specific Motor Current Query
-    elif any(w in q for w in ["current", "ampere", "amp", "amps", "amperage"]) and not any(w in q for w in ["telemetry", "summary", "status"]):
-        return f"⚡ **Motor Current Draw:** The fan motor current draw is currently **{current:.1f} A** on the 6.6 kV HV supply."
-    
-    # Question Intent: Specific Motor Power Query
-    elif any(w in q for w in ["power", "kw", "kilowatt", "load"]):
-        return f"🔌 **Motor Power Draw:** Active electrical load is **{power:.1f} kW** at **{current:.1f} A**."
+    try:
+        # Initialize official Google GenAI Client
+        client = genai.Client(api_key=api_key)
         
-    # Question Intent: Speed / RPM
-    elif any(w in q for w in ["speed", "rpm", "rotation"]):
-        return f"🔄 **Fan Speed:** The ID Fan is running at **{speed_rpm:.0f} RPM**."
-
-    # Question Intent: Flue Gas Temperature
-    elif any(w in q for w in ["temp", "temperature", "heat", "celsius"]):
-        return f"🌡️ **Flue Gas Temperature:** Flue gas inlet temperature is **{flue_gas_temp:.0f} °C**."
-
-    # Question Intent: Vibration Analysis
-    elif any(w in q for w in ["vibration", "bearing"]):
-        status = "CRITICAL 🚨" if vibration > 7.1 else ("WARNING ⚠️" if vibration > 4.5 else "NORMAL ✅")
-        return (
-            f"**Bearing & Vibration Analysis:**\n"
-            f"* Current Vibration RMS: **{vibration:.2f} mm/s** ({status})\n"
-            f"* Bearing Condition: **{bearing_health:.0f}%**\n"
-            f"* **Action Plan:** {'Execute emergency shutdown & sleeve bearing replacement.' if vibration > 7.1 else ('Schedule lube oil flushing and dynamic shaft re-alignment.' if vibration > 4.5 else 'Bearing vibration is within nominal limits (< 4.5 mm/s).')}"
+        # Build live context system instructions
+        system_instruction = f"""
+        You are an expert Thermal Power Plant Mechanical Engineer and Digital Twin AI Specialist.
+        Answer user questions clearly and concisely using real power plant fan physics, Fan Affinity Laws, and maintenance protocols.
+        
+        LIVE ID FAN TELEMETRY DATA:
+        - Fan Speed: {speed_rpm:.0f} RPM
+        - Inlet Guide Vane (IGV / Damper): {damper_pct:.0f}%
+        - Flue Gas Temperature: {flue_gas_temp:.0f} °C
+        - Volumetric Gas Flow Rate: {flow:,.0f} m³/h
+        - Furnace Suction Pressure (Draft): {draft:.1f} mmWC
+        - HV Motor Active Power: {power:.1f} kW
+        - HV Motor Line Current: {current:.1f} A (6.6 kV rating)
+        - Bearing RMS Vibration: {vibration:.2f} mm/s
+        - Blade Aerodynamic Condition: {blade_health:.0f}%
+        - Bearing Mechanical Health: {bearing_health:.0f}%
+        - Remaining Useful Life (RUL): {rul_days} Days
+        - Projected Maintenance Date: {next_maint_date.strftime('%B %d, %Y')}
+        """
+        
+        # Generate response via gemini-2.5-flash
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=query,
+            config=types.GenerateContentConfig(
+                system_instruction=system_instruction,
+                temperature=0.3,
+            )
         )
+        return response.text
+    except Exception as e:
+        return f"🚨 **Error contacting Gemini backend:** {str(e)}"
 
-    # Question Intent: Draft & Flow Rate
-    elif any(w in q for w in ["draft", "flow", "damper", "igv", "suction"]):
-        return (
-            f"**Aerodynamic Performance Summary:**\n"
-            f"* **Inlet Damper (IGV):** {damper_pct}%\n"
-            f"* **Volumetric Flow Rate:** {flow:,.0f} m³/h\n"
-            f"* **Furnace Draft Suction:** {draft:.1f} mmWC\n"
-            f"* **Blade Condition:** {blade_health}%"
-        )
-
-    # Question Intent: Maintenance Prognosis & RUL
-    elif any(w in q for w in ["maintenance", "rul", "repair", "overhaul", "schedule", "life"]):
-        return (
-            f"**Predictive Maintenance Prognosis:**\n"
-            f"* **Remaining Useful Life (RUL):** {rul_days} Days\n"
-            f"* **Target Maintenance Date:** {next_maint_date.strftime('%B %d, %Y')}\n"
-            f"* Days Since Overhaul: {days_since_maint} days\n"
-            f"* Cumulative Operating Hours: {cumulative_run_hrs} kHrs."
-        )
-
-    # Question Intent: Full Status Summary
-    elif any(w in q for w in ["telemetry", "status", "summary", "overview"]):
-        return (
-            f"**Current ID Fan Operational Summary:**\n"
-            f"* **Speed:** {speed_rpm:.0f} RPM\n"
-            f"* **Flow Rate:** {flow:,.0f} m³/h\n"
-            f"* **Furnace Draft:** {draft:.1f} mmWC\n"
-            f"* **Motor Power:** {power:.1f} kW ({current:.1f} A)\n"
-            f"* **Vibration:** {vibration:.2f} mm/s RMS\n"
-            f"* **RUL:** {rul_days} days"
-        )
-
-    # Fallback response
-    else:
-        return (
-            f"Regarding your query **\"{query}\"**:\n\n"
-            f"The ID Fan is currently running at **{speed_rpm:.0f} RPM**, drawing **{current:.1f} A** ({power:.1f} kW) "
-            f"and maintaining **{draft:.1f} mmWC** furnace suction. "
-            f"Vibration levels are **{vibration:.2f} mm/s** with an RUL of **{rul_days} days**."
-        )
-
-# --- Custom Metric Card Generator ---
+# --- Metric Card Generator ---
 def custom_metric_card(icon_svg, icon_bg, label, value, unit, subtext):
     return f"""
     <div style="
@@ -293,7 +241,7 @@ m6.markdown(custom_metric_card(date_icon, "#fee2e2", "NEXT MAINT.", next_maint_d
 st.markdown("<div style='margin-bottom: 8px;'></div>", unsafe_allow_html=True)
 
 # --- Tab Layout ---
-tab_dashboard, tab_chat = st.tabs(["🖥️ Twin Dashboard & Analytics", "🤖 Ask ID Fan Assistant"])
+tab_dashboard, tab_chat = st.tabs(["🖥️ Twin Dashboard & Analytics", "🤖 Ask ID Fan Assistant (Gemini Powered)"])
 
 with tab_dashboard:
     col_left, col_right = st.columns([1, 1])
@@ -384,20 +332,22 @@ with tab_dashboard:
         st.pyplot(fig, use_container_width=True)
 
 with tab_chat:
-    st.markdown("<h3 style='color:#0b2545 !important; font-weight:800; font-size:1.1rem;'>💬 ID Fan AI Technical Assistant</h3>", unsafe_allow_html=True)
-    st.caption("Ask contextual questions regarding live telemetry, fault diagnosis, or power plant operating procedures.")
+    st.markdown("<h3 style='color:#0b2545 !important; font-weight:800; font-size:1.1rem;'>💬 ID Fan AI Technical Assistant (Gemini Backend)</h3>", unsafe_allow_html=True)
+    st.caption("Ask contextual questions regarding real-time telemetry, fan mechanics, power reduction strategies, or failure troubleshooting.")
 
     # Render Chat History
     for msg in st.session_state.chat_messages:
         with st.chat_message(msg["role"]):
             st.markdown(msg["content"])
 
-    if user_prompt := st.chat_input("Ask a question about the ID Fan..."):
+    if user_prompt := st.chat_input("Ask Gemini about the ID Fan..."):
         st.session_state.chat_messages.append({"role": "user", "content": user_prompt})
         with st.chat_message("user"):
             st.markdown(user_prompt)
 
-        bot_reply = get_ai_response(user_prompt)
+        with st.spinner("Gemini is analyzing fan telemetry..."):
+            bot_reply = ask_gemini_backend(user_prompt)
+
         st.session_state.chat_messages.append({"role": "assistant", "content": bot_reply})
         with st.chat_message("assistant"):
             st.markdown(bot_reply)
