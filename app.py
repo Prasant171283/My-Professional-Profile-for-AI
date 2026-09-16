@@ -17,10 +17,13 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- Custom CSS Spacing & Styling ---
+# --- Custom CSS: Fixed Spacing & Corporate Styling ---
 st.markdown("""
     <style>
+        /* Hide default Streamlit header bar space */
         header[data-testid="stHeader"] { height: 0px !important; background: transparent !important; }
+
+        /* Soft ice-blue background with proper top margin */
         .stApp { background-color: #e6eff8 !important; }
         .block-container { 
             padding-top: 2.2rem !important; 
@@ -28,15 +31,19 @@ st.markdown("""
             padding-left: 1.5rem !important; 
             padding-right: 1.5rem !important; 
         }
+        
+        /* Force Header & Title Text Visibility */
         h1, h2, h3, .stApp h1, .stApp h2, .stApp h3 { 
             color: #0b2545 !important; 
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif !important;
         }
+        
         .stMarkdown p, .stMarkdown span { 
             margin-bottom: 0.2rem !important; 
             font-size: 0.85rem !important; 
             color: #1e293b !important; 
         }
+        
         .stAlert { padding: 4px 8px !important; margin-bottom: 0px !important; font-size: 0.8rem !important; }
         hr { margin: 8px 0px !important; border-color: #cbd5e1 !important; }
         div[data-testid="stHorizontalBlock"] { align-items: stretch !important; }
@@ -118,17 +125,14 @@ st.session_state.history = pd.concat([st.session_state.history, new_row], ignore
 
 # --- Gemini API Backend AI Response Function ---
 def ask_gemini_backend(query):
-    # Retrieve API key from Streamlit Secrets
     api_key = st.secrets.get("GEMINI_API_KEY", None)
     
     if not api_key:
         return "⚠️ **API Key Missing**: Please set `GEMINI_API_KEY` in Streamlit secrets to enable Gemini AI."
 
     try:
-        # Initialize official Google GenAI Client
         client = genai.Client(api_key=api_key)
         
-        # Build live context system instructions
         system_instruction = f"""
         You are an expert Thermal Power Plant Mechanical Engineer and Digital Twin AI Specialist.
         Answer user questions clearly and concisely using real power plant fan physics, Fan Affinity Laws, and maintenance protocols.
@@ -148,7 +152,6 @@ def ask_gemini_backend(query):
         - Projected Maintenance Date: {next_maint_date.strftime('%B %d, %Y')}
         """
         
-        # Generate response via gemini-2.5-flash
         response = client.models.generate_content(
             model="gemini-2.5-flash",
             contents=query,
@@ -161,7 +164,7 @@ def ask_gemini_backend(query):
     except Exception as e:
         return f"🚨 **Error contacting Gemini backend:** {str(e)}"
 
-# --- Metric Card Generator ---
+# --- Custom Metric Card Generator ---
 def custom_metric_card(icon_svg, icon_bg, label, value, unit, subtext):
     return f"""
     <div style="
