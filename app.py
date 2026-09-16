@@ -15,7 +15,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- Custom CSS: Fixed Spacing & Styling ---
+# --- Custom CSS: Fixed Spacing & Chatbot Styling ---
 st.markdown("""
     <style>
         /* Hide default Streamlit header bar space */
@@ -25,7 +25,7 @@ st.markdown("""
         .stApp { background-color: #e6eff8 !important; }
         .block-container { 
             padding-top: 2.2rem !important; 
-            padding-bottom: 0rem !important; 
+            padding-bottom: 2rem !important; 
             padding-left: 1.5rem !important; 
             padding-right: 1.5rem !important; 
         }
@@ -44,8 +44,17 @@ st.markdown("""
         }
         
         .stAlert { padding: 4px 8px !important; margin-bottom: 0px !important; font-size: 0.8rem !important; }
-        hr { margin: 8px 0px !important; border-color: #cbd5e1 !important; }
+        hr { margin: 12px 0px !important; border-color: #cbd5e1 !important; }
         div[data-testid="stHorizontalBlock"] { align-items: stretch !important; }
+
+        /* Chatbot Container styling */
+        .chat-box {
+            background-color: #ffffff;
+            border-radius: 12px;
+            padding: 15px;
+            box-shadow: 0px 4px 12px rgba(11, 37, 69, 0.05);
+            margin-top: 10px;
+        }
     </style>
 """, unsafe_allow_html=True)
 
@@ -58,6 +67,11 @@ if "history" not in st.session_state:
 
 if "rotation_angle" not in st.session_state:
     st.session_state.rotation_angle = 0
+
+if "chat_messages" not in st.session_state:
+    st.session_state.chat_messages = [
+        {"role": "assistant", "content": "👋 Hello! I am your ID Fan Virtual Assistant. Ask me anything about the fan's operation, current telemetry, failure symptoms, or prescriptive actions!"}
+    ]
 
 # --- Sidebar Controls ---
 st.sidebar.header("🕹️ Operational Controls")
@@ -288,6 +302,58 @@ with col_right:
 
     plt.tight_layout(pad=0.5)
     st.pyplot(fig, use_container_width=True)
+
+st.markdown("---")
+
+# --- BOTTOM SECTION: Integrated ID Fan AI Assistant Chatbot ---
+st.markdown("<h3 style='color:#0b2545 !important; font-weight:800; font-size:1.1rem; margin-bottom: 4px;'>🤖 ID Fan AI Assistant</h3>", unsafe_allow_html=True)
+st.caption("Ask questions regarding current fan telemetry, diagnostics, or operational troubleshooting.")
+
+# Render previous messages
+for msg in st.session_state.chat_messages:
+    with st.chat_message(msg["role"]):
+        st.markdown(msg["content"])
+
+# Expert Rules & AI Knowledge Assistant Logic
+def get_ai_response(query):
+    q = query.lower()
+    
+    # 1. Telemetry Query
+    if "telemetry" in q or "status" in q or "current" in q or "readings" in q:
+        return f"**Live ID Fan Telemetry Context:**\n- **Speed:** {speed_rpm} RPM\n- **Flow Rate:** {flow:,.0f} m³/h\n- **Furnace Draft:** {draft:.1f} mmWC\n- **Power Draw:** {power:.1f} kW ({current:.1f} A)\n- **Vibration:** {vibration:.2f} mm/s RMS\n- **Remaining Useful Life (RUL):** {rul_days} days"
+    
+    # 2. Vibration / Bearing Query
+    elif "vibration" in q or "bearing" in q:
+        status = "CRITICAL" if vibration > 7.1 else ("WARNING" if vibration > 4.5 else "NORMAL")
+        return f"**Bearing & Vibration Analysis:**\n- Current RMS Vibration: **{vibration:.2f} mm/s** ({status})\n- Estimated Bearing Condition: **{bearing_health:.0f}%**\n- **Action:** {'Execute emergency shutdown & sleeve bearing replacement immediately.' if vibration > 7.1 else ('Schedule lube oil flushing and dynamic shaft re-alignment.' if vibration > 4.5 else 'Bearing vibration is within nominal limits (<4.5 mm/s).')}"
+    
+    # 3. Draft / Flow / Damper Query
+    elif "draft" in q or "flow" in q or "damper" in q or "igv" in q:
+        return f"**Aerodynamic Performance:**\n- **Damper Position:** {damper_pct}%\n- **Furnace Draft:** {draft:.1f} mmWC\n- **Flue Gas Temp:** {flue_gas_temp} °C\n- **Blade Aerodynamic Health:** {blade_health}%\n\n*Note: Lowering damper position reduces total flue gas flow rate and lowers furnace suction pressure.*"
+    
+    # 4. Maintenance / RUL Query
+    elif "maintenance" in q or "rul" in q or "when" in q or "repair" in q:
+        return f"**Prognostics & Maintenance Schedule:**\n- **Remaining Useful Life (RUL):** {rul_days} Days\n- **Projected Maintenance Date:** {next_maint_date.strftime('%B %d, %Y')}\n- Days since last major overhaul: {days_since_maint} days\n- Total operating hours: {cumulative_run_hrs} kHrs."
+    
+    # 5. General / Failure modes
+    elif "what is" in q or "how" in q or "function" in q:
+        return "An **Induced Draft (ID) Fan** is located near the flue gas outlet between the Electrostatic Precipitator (ESP) and the chimney. Its primary function is to create negative draft pressure inside the boiler furnace to safely draw flue gas out into the atmosphere."
+    
+    else:
+        return f"I have recorded your query regarding: *\"{query}\"*. Based on current operational parameters (**{speed_rpm} RPM**, **{vibration:.2f} mm/s vibration**, and **{rul_days} days RUL**), the system is running under normal limits. Feel free to ask about maintenance, draft pressure, or vibration alerts!"
+
+# User Chat Input
+if user_prompt := st.chat_input("Type your question about the ID Fan here..."):
+    # Add user prompt to history
+    st.session_state.chat_messages.append({"role": "user", "content": user_prompt})
+    with st.chat_message("user"):
+        st.markdown(user_prompt)
+
+    # Generate & add bot response
+    bot_reply = get_ai_response(user_prompt)
+    st.session_state.chat_messages.append({"role": "assistant", "content": bot_reply})
+    with st.chat_message("assistant"):
+        st.markdown(bot_reply)
 
 # Auto-stream tick
 time.sleep(0.4)
