@@ -15,12 +15,20 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- Custom CSS for High-Contrast Readable Dashboard ---
+# --- Custom CSS: Fixed Header Spacing & Padding ---
 st.markdown("""
     <style>
-        /* Soft ice-blue background matching reference screenshot */
+        /* Hide default Streamlit top header bar space */
+        header[data-testid="stHeader"] { height: 0px !important; background: transparent !important; }
+
+        /* Soft ice-blue background with proper top margin so title isn't cut off */
         .stApp { background-color: #e6eff8 !important; }
-        .block-container { padding-top: 0.8rem; padding-bottom: 0rem; padding-left: 1.5rem; padding-right: 1.5rem; }
+        .block-container { 
+            padding-top: 2.8rem !important; 
+            padding-bottom: 0rem !important; 
+            padding-left: 1.5rem !important; 
+            padding-right: 1.5rem !important; 
+        }
         
         /* Force Header & Title Text Visibility */
         h1, h2, h3, .stApp h1, .stApp h2, .stApp h3 { 
@@ -43,41 +51,41 @@ st.markdown("""
         .nav-pill {
             background-color: #ffffff;
             color: #0b2545;
-            padding: 6px 14px;
+            padding: 5px 12px;
             border-radius: 20px;
-            font-size: 0.78rem;
+            font-size: 0.75rem;
             font-weight: 700;
             box-shadow: 0px 2px 6px rgba(11, 37, 69, 0.05);
             display: inline-flex;
             align-items: center;
-            gap: 6px;
+            gap: 5px;
             border: 1px solid #dbece5;
-            margin-right: 6px;
+            margin-right: 4px;
         }
         .nav-pill-active {
             background-color: #0b2545;
             color: #ffffff;
-            padding: 6px 14px;
+            padding: 5px 12px;
             border-radius: 20px;
-            font-size: 0.78rem;
+            font-size: 0.75rem;
             font-weight: 700;
             box-shadow: 0px 2px 6px rgba(11, 37, 69, 0.15);
             display: inline-flex;
             align-items: center;
-            gap: 6px;
+            gap: 5px;
         }
     </style>
 """, unsafe_allow_html=True)
 
-# --- Top Navigation Bar with Explicit High-Contrast Text ---
-nav_col1, nav_col2 = st.columns([1, 1.2])
+# --- Top Navigation Bar ---
+nav_col1, nav_col2 = st.columns([1, 1.3])
 
 with nav_col1:
-    st.markdown("<h2 style='margin:0; font-size:1.5rem; font-weight:900; color:#0b2545 !important;'>⚙️ ID Fan Digital Twin</h2>", unsafe_allow_html=True)
+    st.markdown("<h2 style='margin:0; font-size:1.45rem; font-weight:900; color:#0b2545 !important; line-height: 1.2;'>⚙️ ID Fan Digital Twin</h2>", unsafe_allow_html=True)
 
 with nav_col2:
     st.markdown("""
-        <div style="display: flex; justify-content: flex-end; align-items: center;">
+        <div style="display: flex; justify-content: flex-end; align-items: center; flex-wrap: wrap;">
             <span class="nav-pill">📹 IP Camera Live</span>
             <span class="nav-pill">📊 Cam Availability</span>
             <span class="nav-pill">🛸 Drone</span>
@@ -87,7 +95,7 @@ with nav_col2:
         </div>
     """, unsafe_allow_html=True)
 
-st.markdown("<div style='margin-bottom: 8px;'></div>", unsafe_allow_html=True)
+st.markdown("<div style='margin-bottom: 12px;'></div>", unsafe_allow_html=True)
 
 # --- Session State Initialization ---
 if "history" not in st.session_state:
