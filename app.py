@@ -15,38 +15,12 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- Custom CSS for High-Contrast Readable Labels ---
+# --- Custom CSS for Layout Spacing ---
 st.markdown("""
     <style>
         .block-container { padding-top: 1rem; padding-bottom: 0rem; padding-left: 1.5rem; padding-right: 1.5rem; }
         h1 { margin-bottom: 0px !important; font-size: 1.6rem !important; color: #ffffff !important; }
         .stMarkdown p { margin-bottom: 0.2rem !important; font-size: 0.85rem !important; }
-        
-        /* Metric Card Styling - Ultra High Contrast Labels & Values */
-        div[data-testid="stMetric"] { 
-            background-color: #0d1117 !important; 
-            padding: 10px 14px !important; 
-            border-radius: 8px !important; 
-            border: 2px solid #00d2ff !important; 
-            box-shadow: 0px 4px 10px rgba(0, 210, 255, 0.15) !important;
-        }
-        
-        /* High-Visibility Metric Label (Yellow) */
-        div[data-testid="stMetricLabel"] p { 
-            font-size: 0.9rem !important; 
-            color: #ffd166 !important; 
-            font-weight: 800 !important;
-            letter-spacing: 0.5px !important;
-            text-transform: uppercase !important;
-        }
-        
-        /* High-Visibility Metric Value (Pure White) */
-        div[data-testid="stMetricValue"] div { 
-            font-size: 1.25rem !important; 
-            color: #ffffff !important; 
-            font-weight: 900 !important;
-        }
-        
         .stAlert { padding: 4px 8px !important; margin-bottom: 0px !important; font-size: 0.8rem !important; }
         hr { margin: 8px 0px !important; border-color: #2d3436 !important; }
     </style>
@@ -107,14 +81,41 @@ next_maint_date = datetime.now() + timedelta(days=rul_days)
 new_row = pd.DataFrame([{"Draft_mmWC": draft, "Power_kW": power, "Vibration_mms": vibration}])
 st.session_state.history = pd.concat([st.session_state.history, new_row], ignore_index=True).tail(35)
 
-# --- Top Metrics Header (High-Contrast Text) ---
+# --- Helper Function for Custom High-Contrast HTML Metric Cards ---
+def custom_metric(label, value):
+    return f"""
+    <div style="
+        background-color: #0d1117; 
+        border: 2px solid #00d2ff; 
+        border-radius: 8px; 
+        padding: 8px 12px; 
+        text-align: center;
+        box-shadow: 0px 4px 10px rgba(0, 210, 255, 0.2);
+    ">
+        <div style="
+            color: #ffd166; 
+            font-size: 0.82rem; 
+            font-weight: 800; 
+            text-transform: uppercase; 
+            letter-spacing: 0.5px;
+            margin-bottom: 2px;
+        ">{label}</div>
+        <div style="
+            color: #ffffff; 
+            font-size: 1.25rem; 
+            font-weight: 900;
+        ">{value}</div>
+    </div>
+    """
+
+# --- Top Metrics Header (Bright HTML Cards) ---
 m1, m2, m3, m4, m5, m6 = st.columns(6)
-m1.metric("Flow Rate", f"{flow:,.0f} m³/h")
-m2.metric("Furnace Draft", f"{draft:.1f} mmWC")
-m3.metric("Motor Power", f"{power:.1f} kW")
-m4.metric("Current", f"{current:.1f} A")
-m5.metric("Useful Life (RUL)", f"{rul_days} Days")
-m6.metric("Next Maint.", next_maint_date.strftime("%b %d, %Y"))
+m1.markdown(custom_metric("Flow Rate", f"{flow:,.0f} m³/h"), unsafe_allow_html=True)
+m2.markdown(custom_metric("Furnace Draft", f"{draft:.1f} mmWC"), unsafe_allow_html=True)
+m3.markdown(custom_metric("Motor Power", f"{power:.1f} kW"), unsafe_allow_html=True)
+m4.markdown(custom_metric("Current", f"{current:.1f} A"), unsafe_allow_html=True)
+m5.markdown(custom_metric("Useful Life (RUL)", f"{rul_days} Days"), unsafe_allow_html=True)
+m6.markdown(custom_metric("Next Maint.", next_maint_date.strftime("%b %d, %Y")), unsafe_allow_html=True)
 
 st.markdown("---")
 
@@ -182,7 +183,7 @@ with col_left:
         else:
             st.success("Blades: Aerodynamics nominal.")
 
-# --- RIGHT COLUMN: Real-Time Telemetry Trends (High Contrast Plots) ---
+# --- RIGHT COLUMN: Real-Time Telemetry Trends ---
 with col_right:
     st.markdown("<span style='color:#00d2ff; font-weight:bold; font-size:1.05rem;'>📊 Live Telemetry Trends</span>", unsafe_allow_html=True)
     
