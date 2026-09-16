@@ -108,7 +108,7 @@ def custom_metric(label, value):
     </div>
     """
 
-# --- Top Metrics Header (Bright HTML Cards) ---
+# --- Top Metrics Header ---
 m1, m2, m3, m4, m5, m6 = st.columns(6)
 m1.markdown(custom_metric("Flow Rate", f"{flow:,.0f} m³/h"), unsafe_allow_html=True)
 m2.markdown(custom_metric("Furnace Draft", f"{draft:.1f} mmWC"), unsafe_allow_html=True)
@@ -119,10 +119,10 @@ m6.markdown(custom_metric("Next Maint.", next_maint_date.strftime("%b %d, %Y")),
 
 st.markdown("---")
 
-# --- Main Dashboard (Two-Column Layout) ---
+# --- Main Dashboard (Equal-Height Two-Column Layout) ---
 col_left, col_right = st.columns([1.1, 0.9])
 
-# --- LEFT COLUMN: Dynamic Visual Graphic ---
+# --- LEFT COLUMN: Resized Dynamic Visual Graphic ---
 with col_left:
     st.markdown("<span style='color:#00d2ff; font-weight:bold; font-size:1.05rem;'>🖥️ Digital Twin Schematic Diagram</span>", unsafe_allow_html=True)
     
@@ -133,37 +133,37 @@ with col_left:
         blade_svg = ""
         for i in range(8):
             rad = math.radians(angle + (i * 45))
-            x2, y2 = 180 + 60 * math.cos(rad), 150 + 60 * math.sin(rad)
-            blade_svg += f'<line x1="180" y1="150" x2="{x2:.1f}" y2="{y2:.1f}" stroke="#00d2ff" stroke-width="5" stroke-linecap="round"/>'
+            x2, y2 = 180 + 72 * math.cos(rad), 175 + 72 * math.sin(rad)
+            blade_svg += f'<line x1="180" y1="175" x2="{x2:.1f}" y2="{y2:.1f}" stroke="#00d2ff" stroke-width="6" stroke-linecap="round"/>'
 
         damper_lines = ""
-        for y_pos in [110, 130, 150, 170, 190]:
+        for y_pos in [120, 145, 175, 205, 230]:
             rad_d = math.radians(damper_angle)
-            dx, dy = 18 * math.sin(rad_d), 18 * math.cos(rad_d)
-            damper_lines += f'<line x1="{60-dx:.1f}" y1="{y_pos-dy:.1f}" x2="{60+dx:.1f}" y2="{y_pos+dy:.1f}" stroke="#ff9f43" stroke-width="3"/>'
+            dx, dy = 20 * math.sin(rad_d), 20 * math.cos(rad_d)
+            damper_lines += f'<line x1="{60-dx:.1f}" y1="{y_pos-dy:.1f}" x2="{60+dx:.1f}" y2="{y_pos+dy:.1f}" stroke="#ff9f43" stroke-width="4"/>'
 
         return f"""
-        <div style="display:flex; justify-content:center; background:#12161a; border-radius:8px; border:1px solid #00d2ff; padding:5px;">
-        <svg width="100%" height="240" viewBox="0 0 650 280" xmlns="http://www.w3.org/2000/svg">
-            <rect x="20" y="90" width="80" height="120" fill="none" stroke="#00d2ff" stroke-width="2" stroke-dasharray="6 3"/>
-            <text x="25" y="80" fill="#ffffff" font-size="12" font-family="sans-serif" font-weight="bold">INLET DUCT</text>
+        <div style="display:flex; justify-content:center; align-items:center; background:#12161a; border-radius:8px; border:1px solid #00d2ff; padding:4px;">
+        <svg width="100%" height="280" viewBox="0 0 650 330" xmlns="http://www.w3.org/2000/svg">
+            <rect x="20" y="95" width="80" height="160" fill="none" stroke="#00d2ff" stroke-width="2" stroke-dasharray="6 3"/>
+            <text x="25" y="82" fill="#ffffff" font-size="13" font-family="sans-serif" font-weight="bold">INLET DUCT</text>
             {damper_lines}
-            <path d="M 150 70 C 90 70 90 230 180 230 C 260 230 260 30 380 30 L 380 90 C 230 90 230 170 180 170 C 150 170 150 130 180 110" fill="#2c3e50" stroke="#718093" stroke-width="3"/>
-            <circle cx="180" cy="150" r="65" fill="none" stroke="#ffffff" stroke-width="1.5" stroke-dasharray="4 4"/>
+            <path d="M 150 75 C 80 75 80 275 180 275 C 270 275 270 30 380 30 L 380 100 C 230 100 230 200 180 200 C 150 200 150 150 180 130" fill="#2c3e50" stroke="#718093" stroke-width="3"/>
+            <circle cx="180" cy="175" r="78" fill="none" stroke="#ffffff" stroke-width="1.5" stroke-dasharray="4 4"/>
             {blade_svg}
-            <circle cx="180" cy="150" r="16" fill="#dcdde1" stroke="#2f3640" stroke-width="3"/>
-            <rect x="196" y="143" width="180" height="14" fill="#718093" stroke="#2f3640"/>
-            <rect x="290" y="125" width="45" height="50" rx="4" fill="{bearing_color}" stroke="#fff" stroke-width="2"/>
-            <text x="293" y="115" fill="#ffffff" font-size="11" font-family="sans-serif" font-weight="bold">BEARING</text>
-            <rect x="380" y="110" width="110" height="80" rx="6" fill="#2e86de" stroke="#10ac84" stroke-width="2"/>
-            <text x="395" y="152" fill="#ffffff" font-size="12" font-family="sans-serif" font-weight="bold">HV MOTOR</text>
-            <rect x="380" y="20" width="230" height="70" fill="none" stroke="#00d2ff" stroke-width="2"/>
-            <text x="430" y="55" fill="#ffffff" font-size="12" font-family="sans-serif" font-weight="bold">TO ESP / CHIMNEY</text>
+            <circle cx="180" cy="175" r="20" fill="#dcdde1" stroke="#2f3640" stroke-width="3"/>
+            <rect x="200" y="167" width="180" height="16" fill="#718093" stroke="#2f3640"/>
+            <rect x="290" y="145" width="50" height="60" rx="4" fill="{bearing_color}" stroke="#fff" stroke-width="2"/>
+            <text x="293" y="132" fill="#ffffff" font-size="12" font-family="sans-serif" font-weight="bold">BEARING</text>
+            <rect x="380" y="125" width="120" height="95" rx="6" fill="#2e86de" stroke="#10ac84" stroke-width="2"/>
+            <text x="395" y="177" fill="#ffffff" font-size="13" font-family="sans-serif" font-weight="bold">HV MOTOR</text>
+            <rect x="380" y="20" width="230" height="80" fill="none" stroke="#00d2ff" stroke-width="2"/>
+            <text x="430" y="60" fill="#ffffff" font-size="13" font-family="sans-serif" font-weight="bold">TO ESP / CHIMNEY</text>
         </svg>
         </div>
         """
 
-    st.components.v1.html(render_fan_svg(st.session_state.rotation_angle, damper_pct, vibration), height=250)
+    st.components.v1.html(render_fan_svg(st.session_state.rotation_angle, damper_pct, vibration), height=290)
 
     # Prescriptive Actions
     st.markdown("<span style='color:#00d2ff; font-weight:bold; font-size:1.05rem;'>🛠️ Prescriptive Action Plan</span>", unsafe_allow_html=True)
@@ -183,7 +183,7 @@ with col_left:
         else:
             st.success("Blades: Aerodynamics nominal.")
 
-# --- RIGHT COLUMN: Real-Time Telemetry Trends ---
+# --- RIGHT COLUMN: Matching Telemetry Trends ---
 with col_right:
     st.markdown("<span style='color:#00d2ff; font-weight:bold; font-size:1.05rem;'>📊 Live Telemetry Trends</span>", unsafe_allow_html=True)
     
