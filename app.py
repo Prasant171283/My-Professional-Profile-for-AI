@@ -15,30 +15,38 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- Custom CSS for High-Contrast Metric Readability ---
+# --- Custom CSS for High-Contrast Readable Labels ---
 st.markdown("""
     <style>
         .block-container { padding-top: 1rem; padding-bottom: 0rem; padding-left: 1.5rem; padding-right: 1.5rem; }
         h1 { margin-bottom: 0px !important; font-size: 1.6rem !important; color: #ffffff !important; }
         .stMarkdown p { margin-bottom: 0.2rem !important; font-size: 0.85rem !important; }
         
-        /* Metric Card Styling - Bright Text & High Contrast */
+        /* Metric Card Styling - Ultra High Contrast Labels & Values */
         div[data-testid="stMetric"] { 
-            background-color: #1a2332 !important; 
-            padding: 8px 12px !important; 
+            background-color: #0d1117 !important; 
+            padding: 10px 14px !important; 
             border-radius: 8px !important; 
-            border: 1.5px solid #00d2ff !important; 
+            border: 2px solid #00d2ff !important; 
+            box-shadow: 0px 4px 10px rgba(0, 210, 255, 0.15) !important;
         }
-        div[data-testid="stMetricLabel"] { 
-            font-size: 0.85rem !important; 
-            color: #a4b0be !important; 
-            font-weight: 600 !important;
+        
+        /* High-Visibility Metric Label (Yellow) */
+        div[data-testid="stMetricLabel"] p { 
+            font-size: 0.9rem !important; 
+            color: #ffd166 !important; 
+            font-weight: 800 !important;
+            letter-spacing: 0.5px !important;
+            text-transform: uppercase !important;
         }
-        div[data-testid="stMetricValue"] { 
-            font-size: 1.2rem !important; 
+        
+        /* High-Visibility Metric Value (Pure White) */
+        div[data-testid="stMetricValue"] div { 
+            font-size: 1.25rem !important; 
             color: #ffffff !important; 
-            font-weight: bold !important;
+            font-weight: 900 !important;
         }
+        
         .stAlert { padding: 4px 8px !important; margin-bottom: 0px !important; font-size: 0.8rem !important; }
         hr { margin: 8px 0px !important; border-color: #2d3436 !important; }
     </style>
@@ -99,14 +107,14 @@ next_maint_date = datetime.now() + timedelta(days=rul_days)
 new_row = pd.DataFrame([{"Draft_mmWC": draft, "Power_kW": power, "Vibration_mms": vibration}])
 st.session_state.history = pd.concat([st.session_state.history, new_row], ignore_index=True).tail(35)
 
-# --- Top Metrics Header (Bright Colors) ---
+# --- Top Metrics Header (High-Contrast Text) ---
 m1, m2, m3, m4, m5, m6 = st.columns(6)
 m1.metric("Flow Rate", f"{flow:,.0f} m³/h")
 m2.metric("Furnace Draft", f"{draft:.1f} mmWC")
 m3.metric("Motor Power", f"{power:.1f} kW")
 m4.metric("Current", f"{current:.1f} A")
 m5.metric("Useful Life (RUL)", f"{rul_days} Days")
-m6.metric("Next Maintenance", next_maint_date.strftime("%b %d, %Y"))
+m6.metric("Next Maint.", next_maint_date.strftime("%b %d, %Y"))
 
 st.markdown("---")
 
@@ -115,7 +123,7 @@ col_left, col_right = st.columns([1.1, 0.9])
 
 # --- LEFT COLUMN: Dynamic Visual Graphic ---
 with col_left:
-    st.markdown("<span style='color:#00d2ff; font-weight:bold;'>🖥️ Digital Twin Schematic Diagram</span>", unsafe_allow_html=True)
+    st.markdown("<span style='color:#00d2ff; font-weight:bold; font-size:1.05rem;'>🖥️ Digital Twin Schematic Diagram</span>", unsafe_allow_html=True)
     
     def render_fan_svg(angle, damper_val, vib_val):
         bearing_color = "#28a745" if vib_val < 4.5 else ("#ffc107" if vib_val < 7.1 else "#dc3545")
@@ -156,8 +164,8 @@ with col_left:
 
     st.components.v1.html(render_fan_svg(st.session_state.rotation_angle, damper_pct, vibration), height=250)
 
-    # Prescriptive Actions (High Contrast Text)
-    st.markdown("<span style='color:#00d2ff; font-weight:bold;'>🛠️ Prescriptive Action Plan</span>", unsafe_allow_html=True)
+    # Prescriptive Actions
+    st.markdown("<span style='color:#00d2ff; font-weight:bold; font-size:1.05rem;'>🛠️ Prescriptive Action Plan</span>", unsafe_allow_html=True)
     act1, act2 = st.columns(2)
     with act1:
         if bearing_health < 50:
@@ -174,12 +182,12 @@ with col_left:
         else:
             st.success("Blades: Aerodynamics nominal.")
 
-# --- RIGHT COLUMN: Real-Time Telemetry Trends (High-Contrast Matplotlib Plots) ---
+# --- RIGHT COLUMN: Real-Time Telemetry Trends (High Contrast Plots) ---
 with col_right:
-    st.markdown("<span style='color:#00d2ff; font-weight:bold;'>📊 Live Telemetry Trends</span>", unsafe_allow_html=True)
+    st.markdown("<span style='color:#00d2ff; font-weight:bold; font-size:1.05rem;'>📊 Live Telemetry Trends</span>", unsafe_allow_html=True)
     
     fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(6, 4.2), sharex=True)
-    fig.patch.set_facecolor('#0e1117')
+    fig.patch.set_facecolor('#0d1117')
 
     for ax in (ax1, ax2, ax3):
         ax.set_facecolor('#161b22')
