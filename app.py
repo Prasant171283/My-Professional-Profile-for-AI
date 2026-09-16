@@ -15,14 +15,18 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- Custom CSS for Layout Spacing & Matching Panels ---
+# --- Custom CSS for Light Grey Theme & White/Blue Metric Cards ---
 st.markdown("""
     <style>
+        /* Overall Page & App Background (Light Grey) */
+        .stApp { background-color: #f0f2f5 !important; }
         .block-container { padding-top: 1rem; padding-bottom: 0rem; padding-left: 1.5rem; padding-right: 1.5rem; }
-        h1 { margin-bottom: 0px !important; font-size: 1.6rem !important; color: #ffffff !important; }
-        .stMarkdown p { margin-bottom: 0.2rem !important; font-size: 0.85rem !important; }
+        
+        /* Headers & Main Text Colors */
+        h1 { margin-bottom: 0px !important; font-size: 1.6rem !important; color: #1a252c !important; }
+        .stMarkdown p { margin-bottom: 0.2rem !important; font-size: 0.85rem !important; color: #1a252c !important; }
         .stAlert { padding: 4px 8px !important; margin-bottom: 0px !important; font-size: 0.8rem !important; }
-        hr { margin: 8px 0px !important; border-color: #2d3436 !important; }
+        hr { margin: 8px 0px !important; border-color: #cfd8dc !important; }
         div[data-testid="stHorizontalBlock"] { align-items: stretch !important; }
     </style>
 """, unsafe_allow_html=True)
@@ -45,20 +49,19 @@ flue_gas_temp = st.sidebar.slider("Flue Gas Temp (°C)", 90, 220, 145, 1)
 st.sidebar.markdown("---")
 st.sidebar.header("⚠️ Wear & Maintenance History")
 
-# New Operational History Sliders
+# Operational History Sliders
 days_since_maint = st.sidebar.slider("Days Since Last Maintenance", 0, 730, 45, 5)
 months_since_new = st.sidebar.slider("Months Since New Bearing Install", 0, 60, 12, 1)
 cumulative_run_hrs = st.sidebar.slider("Cumulative Run Hours (kHrs)", 0.0, 50.0, 8.5, 0.5)
 blade_health = st.sidebar.slider("Blade Health (%)", 20, 100, 100, 5)
 
 # Calculate Base Health from Maintenance & Run Hours
-maint_wear = (days_since_maint / 730.0) * 35.0          # Max 35% loss over 2 years
-install_wear = (months_since_new / 60.0) * 25.0         # Max 25% loss over 5 years
-hours_wear = (cumulative_run_hrs / 50.0) * 30.0          # Max 30% loss over 50k hours
+maint_wear = (days_since_maint / 730.0) * 35.0          
+install_wear = (months_since_new / 60.0) * 25.0         
+hours_wear = (cumulative_run_hrs / 50.0) * 30.0          
 calculated_bearing_health = max(10.0, min(100.0, 100.0 - (maint_wear + install_wear + hours_wear)))
 
 st.sidebar.markdown("---")
-# Slidable Bearing Condition with calculated default value
 override_bearing = st.sidebar.checkbox("Manual Bearing Override", value=False)
 if override_bearing:
     bearing_health = st.sidebar.slider("Bearing Condition (%)", 10, 100, 80, 5)
@@ -100,19 +103,19 @@ next_maint_date = datetime.now() + timedelta(days=rul_days)
 new_row = pd.DataFrame([{"Draft_mmWC": draft, "Power_kW": power, "Vibration_mms": vibration}])
 st.session_state.history = pd.concat([st.session_state.history, new_row], ignore_index=True).tail(35)
 
-# --- Helper Function for Custom Metric Cards ---
+# --- Helper Function for Custom White & Blue HTML Metric Cards ---
 def custom_metric(label, value):
     return f"""
     <div style="
-        background-color: #0d1117; 
-        border: 2px solid #00d2ff; 
+        background-color: #ffffff; 
+        border: 2px solid #0056b3; 
         border-radius: 8px; 
         padding: 8px 12px; 
         text-align: center;
-        box-shadow: 0px 4px 10px rgba(0, 210, 255, 0.2);
+        box-shadow: 0px 4px 10px rgba(0, 86, 179, 0.12);
     ">
         <div style="
-            color: #ffd166; 
+            color: #004b87; 
             font-size: 0.82rem; 
             font-weight: 800; 
             text-transform: uppercase; 
@@ -120,7 +123,7 @@ def custom_metric(label, value):
             margin-bottom: 2px;
         ">{label}</div>
         <div style="
-            color: #ffffff; 
+            color: #0072ce; 
             font-size: 1.25rem; 
             font-weight: 900;
         ">{value}</div>
@@ -143,7 +146,7 @@ col_left, col_right = st.columns([1, 1])
 
 # --- LEFT COLUMN: Schematic Diagram ---
 with col_left:
-    st.markdown("<span style='color:#00d2ff; font-weight:bold; font-size:1.05rem;'>🖥️ Digital Twin Schematic Diagram</span>", unsafe_allow_html=True)
+    st.markdown("<span style='color:#0056b3; font-weight:bold; font-size:1.05rem;'>🖥️ Digital Twin Schematic Diagram</span>", unsafe_allow_html=True)
     
     def render_fan_svg(angle, damper_val, vib_val):
         bearing_color = "#28a745" if vib_val < 4.5 else ("#ffc107" if vib_val < 7.1 else "#dc3545")
@@ -153,31 +156,31 @@ with col_left:
         for i in range(8):
             rad = math.radians(angle + (i * 45))
             x2, y2 = 180 + 72 * math.cos(rad), 175 + 72 * math.sin(rad)
-            blade_svg += f'<line x1="180" y1="175" x2="{x2:.1f}" y2="{y2:.1f}" stroke="#00d2ff" stroke-width="6" stroke-linecap="round"/>'
+            blade_svg += f'<line x1="180" y1="175" x2="{x2:.1f}" y2="{y2:.1f}" stroke="#0072ce" stroke-width="6" stroke-linecap="round"/>'
 
         damper_lines = ""
         for y_pos in [120, 145, 175, 205, 230]:
             rad_d = math.radians(damper_angle)
             dx, dy = 20 * math.sin(rad_d), 20 * math.cos(rad_d)
-            damper_lines += f'<line x1="{60-dx:.1f}" y1="{y_pos-dy:.1f}" x2="{60+dx:.1f}" y2="{y_pos+dy:.1f}" stroke="#ff9f43" stroke-width="4"/>'
+            damper_lines += f'<line x1="{60-dx:.1f}" y1="{y_pos-dy:.1f}" x2="{60+dx:.1f}" y2="{y_pos+dy:.1f}" stroke="#d97706" stroke-width="4"/>'
 
         return f"""
-        <div style="display:flex; justify-content:center; align-items:center; background:#12161a; border-radius:8px; border:1px solid #00d2ff; padding:4px; height: 350px;">
+        <div style="display:flex; justify-content:center; align-items:center; background:#ffffff; border-radius:8px; border:2px solid #0056b3; padding:4px; height: 350px; box-shadow: 0px 4px 10px rgba(0,0,0,0.05);">
         <svg width="100%" height="100%" viewBox="0 0 650 330" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg">
-            <rect x="20" y="95" width="80" height="160" fill="none" stroke="#00d2ff" stroke-width="2" stroke-dasharray="6 3"/>
-            <text x="25" y="82" fill="#ffffff" font-size="13" font-family="sans-serif" font-weight="bold">INLET DUCT</text>
+            <rect x="20" y="95" width="80" height="160" fill="none" stroke="#0056b3" stroke-width="2" stroke-dasharray="6 3"/>
+            <text x="25" y="82" fill="#1a252c" font-size="13" font-family="sans-serif" font-weight="bold">INLET DUCT</text>
             {damper_lines}
-            <path d="M 150 75 C 80 75 80 275 180 275 C 270 275 270 30 380 30 L 380 100 C 230 100 230 200 180 200 C 150 200 150 150 180 130" fill="#2c3e50" stroke="#718093" stroke-width="3"/>
-            <circle cx="180" cy="175" r="78" fill="none" stroke="#ffffff" stroke-width="1.5" stroke-dasharray="4 4"/>
+            <path d="M 150 75 C 80 75 80 275 180 275 C 270 275 270 30 380 30 L 380 100 C 230 100 230 200 180 200 C 150 200 150 150 180 130" fill="#e2e8f0" stroke="#475569" stroke-width="3"/>
+            <circle cx="180" cy="175" r="78" fill="none" stroke="#475569" stroke-width="1.5" stroke-dasharray="4 4"/>
             {blade_svg}
-            <circle cx="180" cy="175" r="20" fill="#dcdde1" stroke="#2f3640" stroke-width="3"/>
-            <rect x="200" y="167" width="180" height="16" fill="#718093" stroke="#2f3640"/>
-            <rect x="290" y="145" width="50" height="60" rx="4" fill="{bearing_color}" stroke="#fff" stroke-width="2"/>
-            <text x="293" y="132" fill="#ffffff" font-size="12" font-family="sans-serif" font-weight="bold">BEARING</text>
-            <rect x="380" y="125" width="120" height="95" rx="6" fill="#2e86de" stroke="#10ac84" stroke-width="2"/>
+            <circle cx="180" cy="175" r="20" fill="#94a3b8" stroke="#334155" stroke-width="3"/>
+            <rect x="200" y="167" width="180" height="16" fill="#64748b" stroke="#334155"/>
+            <rect x="290" y="145" width="50" height="60" rx="4" fill="{bearing_color}" stroke="#ffffff" stroke-width="2"/>
+            <text x="293" y="132" fill="#1a252c" font-size="12" font-family="sans-serif" font-weight="bold">BEARING</text>
+            <rect x="380" y="125" width="120" height="95" rx="6" fill="#0284c7" stroke="#0369a1" stroke-width="2"/>
             <text x="395" y="177" fill="#ffffff" font-size="13" font-family="sans-serif" font-weight="bold">HV MOTOR</text>
-            <rect x="380" y="20" width="230" height="80" fill="none" stroke="#00d2ff" stroke-width="2"/>
-            <text x="430" y="60" fill="#ffffff" font-size="13" font-family="sans-serif" font-weight="bold">TO ESP / CHIMNEY</text>
+            <rect x="380" y="20" width="230" height="80" fill="none" stroke="#0056b3" stroke-width="2"/>
+            <text x="430" y="60" fill="#1a252c" font-size="13" font-family="sans-serif" font-weight="bold">TO ESP / CHIMNEY</text>
         </svg>
         </div>
         """
@@ -185,7 +188,7 @@ with col_left:
     st.components.v1.html(render_fan_svg(st.session_state.rotation_angle, damper_pct, vibration), height=358)
 
     # Prescriptive Actions Plan
-    st.markdown("<span style='color:#00d2ff; font-weight:bold; font-size:1.05rem;'>🛠️ Prescriptive Action Plan</span>", unsafe_allow_html=True)
+    st.markdown("<span style='color:#0056b3; font-weight:bold; font-size:1.05rem;'>🛠️ Prescriptive Action Plan</span>", unsafe_allow_html=True)
     act1, act2 = st.columns(2)
     with act1:
         if bearing_health < 50:
@@ -202,32 +205,32 @@ with col_left:
         else:
             st.success("Blades: Aerodynamics nominal.")
 
-# --- RIGHT COLUMN: Telemetry Trends ---
+# --- RIGHT COLUMN: Telemetry Trends (Light Theme Plots) ---
 with col_right:
-    st.markdown("<span style='color:#00d2ff; font-weight:bold; font-size:1.05rem;'>📊 Live Telemetry Trends</span>", unsafe_allow_html=True)
+    st.markdown("<span style='color:#0056b3; font-weight:bold; font-size:1.05rem;'>📊 Live Telemetry Trends</span>", unsafe_allow_html=True)
     
     fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(6.5, 5.1), sharex=True)
-    fig.patch.set_facecolor('#0d1117')
+    fig.patch.set_facecolor('#ffffff')
 
     for ax in (ax1, ax2, ax3):
-        ax.set_facecolor('#161b22')
-        ax.tick_params(colors='#ffffff', labelsize=8)
-        ax.xaxis.label.set_color('#ffffff')
-        ax.yaxis.label.set_color('#ffffff')
-        ax.grid(True, linestyle="--", alpha=0.4, color="#546e7a")
+        ax.set_facecolor('#f8fafc')
+        ax.tick_params(colors='#334155', labelsize=8)
+        ax.xaxis.label.set_color('#334155')
+        ax.yaxis.label.set_color('#334155')
+        ax.grid(True, linestyle="--", alpha=0.5, color="#cbd5e1")
 
     # Plot 1: Furnace Draft
-    ax1.plot(st.session_state.history["Draft_mmWC"].values, color="#ff4d4d", lw=2)
-    ax1.set_ylabel("Draft (mmWC)", fontsize=9, color="#ff4d4d", weight="bold")
+    ax1.plot(st.session_state.history["Draft_mmWC"].values, color="#dc2626", lw=2)
+    ax1.set_ylabel("Draft (mmWC)", fontsize=9, color="#dc2626", weight="bold")
 
     # Plot 2: Power Draw
-    ax2.plot(st.session_state.history["Power_kW"].values, color="#00d2ff", lw=2)
-    ax2.set_ylabel("Power (kW)", fontsize=9, color="#00d2ff", weight="bold")
+    ax2.plot(st.session_state.history["Power_kW"].values, color="#0284c7", lw=2)
+    ax2.set_ylabel("Power (kW)", fontsize=9, color="#0284c7", weight="bold")
 
     # Plot 3: Bearing Vibration
-    ax3.plot(st.session_state.history["Vibration_mms"].values, color="#ff9f43", lw=2)
-    ax3.set_ylabel("Vib (mm/s)", fontsize=9, color="#ff9f43", weight="bold")
-    ax3.set_xlabel("Time Step Buffer", fontsize=8, color="#ffffff")
+    ax3.plot(st.session_state.history["Vibration_mms"].values, color="#d97706", lw=2)
+    ax3.set_ylabel("Vib (mm/s)", fontsize=9, color="#d97706", weight="bold")
+    ax3.set_xlabel("Time Step Buffer", fontsize=8, color="#334155")
 
     plt.tight_layout(pad=0.5)
     st.pyplot(fig, use_container_width=True)
