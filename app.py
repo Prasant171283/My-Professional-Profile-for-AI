@@ -15,7 +15,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- Custom CSS for Layout Spacing ---
+# --- Custom CSS for Layout & Matching Panels ---
 st.markdown("""
     <style>
         .block-container { padding-top: 1rem; padding-bottom: 0rem; padding-left: 1.5rem; padding-right: 1.5rem; }
@@ -23,6 +23,9 @@ st.markdown("""
         .stMarkdown p { margin-bottom: 0.2rem !important; font-size: 0.85rem !important; }
         .stAlert { padding: 4px 8px !important; margin-bottom: 0px !important; font-size: 0.8rem !important; }
         hr { margin: 8px 0px !important; border-color: #2d3436 !important; }
+        
+        /* Force plot and component containers to stretch evenly */
+        div[data-testid="stHorizontalBlock"] { align-items: stretch !important; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -81,7 +84,7 @@ next_maint_date = datetime.now() + timedelta(days=rul_days)
 new_row = pd.DataFrame([{"Draft_mmWC": draft, "Power_kW": power, "Vibration_mms": vibration}])
 st.session_state.history = pd.concat([st.session_state.history, new_row], ignore_index=True).tail(35)
 
-# --- Helper Function for Custom High-Contrast HTML Metric Cards ---
+# --- Helper Function for Custom Metric Cards ---
 def custom_metric(label, value):
     return f"""
     <div style="
@@ -119,10 +122,10 @@ m6.markdown(custom_metric("Next Maint.", next_maint_date.strftime("%b %d, %Y")),
 
 st.markdown("---")
 
-# --- Main Dashboard (Equal-Height Two-Column Layout) ---
-col_left, col_right = st.columns([1.1, 0.9])
+# --- Equal Width & Height Column Layout ---
+col_left, col_right = st.columns([1, 1])
 
-# --- LEFT COLUMN: Resized Dynamic Visual Graphic ---
+# --- LEFT COLUMN: Schematic Diagram ---
 with col_left:
     st.markdown("<span style='color:#00d2ff; font-weight:bold; font-size:1.05rem;'>🖥️ Digital Twin Schematic Diagram</span>", unsafe_allow_html=True)
     
@@ -143,8 +146,8 @@ with col_left:
             damper_lines += f'<line x1="{60-dx:.1f}" y1="{y_pos-dy:.1f}" x2="{60+dx:.1f}" y2="{y_pos+dy:.1f}" stroke="#ff9f43" stroke-width="4"/>'
 
         return f"""
-        <div style="display:flex; justify-content:center; align-items:center; background:#12161a; border-radius:8px; border:1px solid #00d2ff; padding:4px;">
-        <svg width="100%" height="280" viewBox="0 0 650 330" xmlns="http://www.w3.org/2000/svg">
+        <div style="display:flex; justify-content:center; align-items:center; background:#12161a; border-radius:8px; border:1px solid #00d2ff; padding:4px; height: 350px;">
+        <svg width="100%" height="100%" viewBox="0 0 650 330" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg">
             <rect x="20" y="95" width="80" height="160" fill="none" stroke="#00d2ff" stroke-width="2" stroke-dasharray="6 3"/>
             <text x="25" y="82" fill="#ffffff" font-size="13" font-family="sans-serif" font-weight="bold">INLET DUCT</text>
             {damper_lines}
@@ -163,9 +166,9 @@ with col_left:
         </div>
         """
 
-    st.components.v1.html(render_fan_svg(st.session_state.rotation_angle, damper_pct, vibration), height=290)
+    st.components.v1.html(render_fan_svg(st.session_state.rotation_angle, damper_pct, vibration), height=358)
 
-    # Prescriptive Actions
+    # Prescriptive Actions Plan
     st.markdown("<span style='color:#00d2ff; font-weight:bold; font-size:1.05rem;'>🛠️ Prescriptive Action Plan</span>", unsafe_allow_html=True)
     act1, act2 = st.columns(2)
     with act1:
@@ -183,11 +186,12 @@ with col_left:
         else:
             st.success("Blades: Aerodynamics nominal.")
 
-# --- RIGHT COLUMN: Matching Telemetry Trends ---
+# --- RIGHT COLUMN: Telemetry Trends ---
 with col_right:
     st.markdown("<span style='color:#00d2ff; font-weight:bold; font-size:1.05rem;'>📊 Live Telemetry Trends</span>", unsafe_allow_html=True)
     
-    fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(6, 4.2), sharex=True)
+    # Matplotlib figure resized to match 358px SVG container height exactly
+    fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(6.5, 5.1), sharex=True)
     fig.patch.set_facecolor('#0d1117')
 
     for ax in (ax1, ax2, ax3):
@@ -211,7 +215,7 @@ with col_right:
     ax3.set_xlabel("Time Step Buffer", fontsize=8, color="#ffffff")
 
     plt.tight_layout(pad=0.5)
-    st.pyplot(fig)
+    st.pyplot(fig, use_container_width=True)
 
 # Auto-stream tick
 time.sleep(0.4)
