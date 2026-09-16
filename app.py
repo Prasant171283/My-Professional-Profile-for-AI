@@ -15,7 +15,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- Custom CSS for Layout & Matching Panels ---
+# --- Custom CSS for Layout Spacing & Matching Panels ---
 st.markdown("""
     <style>
         .block-container { padding-top: 1rem; padding-bottom: 0rem; padding-left: 1.5rem; padding-right: 1.5rem; }
@@ -23,8 +23,6 @@ st.markdown("""
         .stMarkdown p { margin-bottom: 0.2rem !important; font-size: 0.85rem !important; }
         .stAlert { padding: 4px 8px !important; margin-bottom: 0px !important; font-size: 0.8rem !important; }
         hr { margin: 8px 0px !important; border-color: #2d3436 !important; }
-        
-        /* Force plot and component containers to stretch evenly */
         div[data-testid="stHorizontalBlock"] { align-items: stretch !important; }
     </style>
 """, unsafe_allow_html=True)
@@ -45,9 +43,27 @@ damper_pct = st.sidebar.slider("Damper / IGV (%)", 0, 100, 75, 1)
 flue_gas_temp = st.sidebar.slider("Flue Gas Temp (°C)", 90, 220, 145, 1)
 
 st.sidebar.markdown("---")
-st.sidebar.header("⚠️ Fault Injections")
+st.sidebar.header("⚠️ Wear & Maintenance History")
+
+# New Operational History Sliders
+days_since_maint = st.sidebar.slider("Days Since Last Maintenance", 0, 730, 45, 5)
+months_since_new = st.sidebar.slider("Months Since New Bearing Install", 0, 60, 12, 1)
+cumulative_run_hrs = st.sidebar.slider("Cumulative Run Hours (kHrs)", 0.0, 50.0, 8.5, 0.5)
 blade_health = st.sidebar.slider("Blade Health (%)", 20, 100, 100, 5)
-bearing_health = st.sidebar.slider("Bearing Condition (%)", 10, 100, 100, 5)
+
+# Calculate Base Health from Maintenance & Run Hours
+maint_wear = (days_since_maint / 730.0) * 35.0          # Max 35% loss over 2 years
+install_wear = (months_since_new / 60.0) * 25.0         # Max 25% loss over 5 years
+hours_wear = (cumulative_run_hrs / 50.0) * 30.0          # Max 30% loss over 50k hours
+calculated_bearing_health = max(10.0, min(100.0, 100.0 - (maint_wear + install_wear + hours_wear)))
+
+st.sidebar.markdown("---")
+# Slidable Bearing Condition with calculated default value
+override_bearing = st.sidebar.checkbox("Manual Bearing Override", value=False)
+if override_bearing:
+    bearing_health = st.sidebar.slider("Bearing Condition (%)", 10, 100, 80, 5)
+else:
+    bearing_health = st.sidebar.slider("Bearing Condition (%) (Auto-Calculated)", 10, 100, int(calculated_bearing_health), 1)
 
 # Rotation animation step
 st.session_state.rotation_angle = (st.session_state.rotation_angle + (speed_rpm / 100.0) * 15) % 360
@@ -190,7 +206,6 @@ with col_left:
 with col_right:
     st.markdown("<span style='color:#00d2ff; font-weight:bold; font-size:1.05rem;'>📊 Live Telemetry Trends</span>", unsafe_allow_html=True)
     
-    # Matplotlib figure resized to match 358px SVG container height exactly
     fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(6.5, 5.1), sharex=True)
     fig.patch.set_facecolor('#0d1117')
 
