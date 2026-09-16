@@ -145,6 +145,7 @@ def ask_gemini_backend(query):
         - Projected Maintenance Date: {next_maint_date.strftime('%B %d, %Y')}
         """
         
+        # Primary endpoint for google-genai SDK
         response = client.models.generate_content(
             model="gemini-2.5-flash",
             contents=query,
@@ -156,6 +157,7 @@ def ask_gemini_backend(query):
         return response.text
 
     except Exception as e:
+        # Fallback to gemini-2.5-pro if flash model endpoint is restricted
         try:
             response = client.models.generate_content(
                 model="gemini-2.5-pro",
@@ -168,7 +170,6 @@ def ask_gemini_backend(query):
             return response.text
         except Exception as fallback_e:
             return f"🚨 **Error contacting Gemini backend:** {str(fallback_e)}"
-
 # --- Custom Metric Card Generator ---
 def custom_metric_card(icon_svg, icon_bg, label, value, unit, subtext):
     return f"""
