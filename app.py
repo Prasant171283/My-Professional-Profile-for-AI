@@ -152,21 +152,12 @@ def ask_gemini_backend(query):
         - Projected Maintenance Date: {next_maint_date.strftime('%B %d, %Y')}
         """
         
-        # Using supported model endpoint gemini-2.5-flash
-        response = client.models.generate_content(
-            model="gemini-2.5-flash",
-            contents=query,
-            config=types.GenerateContentConfig(
-                system_instruction=system_instruction,
-                temperature=0.3,
-            )
-        )
-        return response.text
-    except Exception as e:
-        # Fallback to gemini-2.5-flash if API alias varies
+        # Primary: Dynamic alias pointing to the active Flash production model
+        model_name = "gemini-flash-latest"
+        
         try:
             response = client.models.generate_content(
-                model="gemini-2.5-flash",
+                model=model_name,
                 contents=query,
                 config=types.GenerateContentConfig(
                     system_instruction=system_instruction,
@@ -174,9 +165,20 @@ def ask_gemini_backend(query):
                 )
             )
             return response.text
-        except Exception as fallback_e:
-            return f"🚨 **Error contacting Gemini backend:** {str(fallback_e)}"
+        except Exception:
+            # Fallback for standard free-tier endpoints
+            response = client.models.generate_content(
+                model="gemini-1.5-flash",
+                contents=query,
+                config=types.GenerateContentConfig(
+                    system_instruction=system_instruction,
+                    temperature=0.3,
+                )
+            )
+            return response.text
 
+    except Exception as e:
+        return f"🚨 **Error contacting Gemini backend:** {str(e)}"
 # --- Custom Metric Card Generator ---
 def custom_metric_card(icon_svg, icon_bg, label, value, unit, subtext):
     return f"""
