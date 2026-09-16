@@ -15,26 +15,21 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- Custom CSS: Fixed Spacing & Chatbot Styling ---
+# --- Custom CSS: Fixed Spacing & Styling ---
 st.markdown("""
     <style>
-        /* Hide default Streamlit header bar space */
         header[data-testid="stHeader"] { height: 0px !important; background: transparent !important; }
-
-        /* Soft ice-blue background with proper top margin */
         .stApp { background-color: #e6eff8 !important; }
         .block-container { 
-            padding-top: 2.2rem !important; 
-            padding-bottom: 2rem !important; 
+            padding-top: 2.0rem !important; 
+            padding-bottom: 0.5rem !important; 
             padding-left: 1.5rem !important; 
             padding-right: 1.5rem !important; 
         }
         
-        /* Force Header & Title Text Visibility */
         h1, h2, h3, .stApp h1, .stApp h2, .stApp h3 { 
             color: #0b2545 !important; 
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif !important;
-            opacity: 1 !important;
         }
         
         .stMarkdown p, .stMarkdown span { 
@@ -44,17 +39,8 @@ st.markdown("""
         }
         
         .stAlert { padding: 4px 8px !important; margin-bottom: 0px !important; font-size: 0.8rem !important; }
-        hr { margin: 12px 0px !important; border-color: #cbd5e1 !important; }
+        hr { margin: 8px 0px !important; border-color: #cbd5e1 !important; }
         div[data-testid="stHorizontalBlock"] { align-items: stretch !important; }
-
-        /* Chatbot Container styling */
-        .chat-box {
-            background-color: #ffffff;
-            border-radius: 12px;
-            padding: 15px;
-            box-shadow: 0px 4px 12px rgba(11, 37, 69, 0.05);
-            margin-top: 10px;
-        }
     </style>
 """, unsafe_allow_html=True)
 
@@ -70,7 +56,7 @@ if "rotation_angle" not in st.session_state:
 
 if "chat_messages" not in st.session_state:
     st.session_state.chat_messages = [
-        {"role": "assistant", "content": "👋 Hello! I am your ID Fan Virtual Assistant. Ask me anything about the fan's operation, current telemetry, failure symptoms, or prescriptive actions!"}
+        {"role": "assistant", "content": "👋 Hello! I am your ID Fan Virtual Assistant. Ask me anything about current telemetry, vibration limits, or maintenance procedures."}
     ]
 
 # --- Sidebar Controls ---
@@ -210,151 +196,170 @@ m6.markdown(custom_metric_card(date_icon, "#fee2e2", "NEXT MAINT.", next_maint_d
 
 st.markdown("<div style='margin-bottom: 8px;'></div>", unsafe_allow_html=True)
 
-# --- Main Dashboard Split ---
-col_left, col_right = st.columns([1, 1])
+# --- Tab Layout to Keep Dashboard Single Page ---
+tab_dashboard, tab_chat = st.tabs(["🖥️ Twin Dashboard & Analytics", "🤖 Ask ID Fan Assistant"])
 
-# --- LEFT COLUMN: Digital Twin Schematic ---
-with col_left:
-    st.markdown("<h3 style='color:#0b2545 !important; font-weight:800; font-size:1.05rem; margin-bottom: 6px;'>🖥️ Digital Twin Schematic Diagram</h3>", unsafe_allow_html=True)
-    
-    def render_fan_svg(angle, damper_val, vib_val):
-        bearing_color = "#16a34a" if vib_val < 4.5 else ("#d97706" if vib_val < 7.1 else "#dc2626")
-        damper_angle = (1.0 - (damper_val / 100.0)) * 75
+with tab_dashboard:
+    col_left, col_right = st.columns([1, 1])
+
+    with col_left:
+        st.markdown("<h3 style='color:#0b2545 !important; font-weight:800; font-size:1.05rem; margin-bottom: 6px;'>🖥️ Digital Twin Schematic Diagram</h3>", unsafe_allow_html=True)
         
-        blade_svg = ""
-        for i in range(8):
-            rad = math.radians(angle + (i * 45))
-            x2, y2 = 180 + 72 * math.cos(rad), 175 + 72 * math.sin(rad)
-            blade_svg += f'<line x1="180" y1="175" x2="{x2:.1f}" y2="{y2:.1f}" stroke="#0f766e" stroke-width="6" stroke-linecap="round"/>'
+        def render_fan_svg(angle, damper_val, vib_val):
+            bearing_color = "#16a34a" if vib_val < 4.5 else ("#d97706" if vib_val < 7.1 else "#dc2626")
+            damper_angle = (1.0 - (damper_val / 100.0)) * 75
+            
+            blade_svg = ""
+            for i in range(8):
+                rad = math.radians(angle + (i * 45))
+                x2, y2 = 180 + 72 * math.cos(rad), 175 + 72 * math.sin(rad)
+                blade_svg += f'<line x1="180" y1="175" x2="{x2:.1f}" y2="{y2:.1f}" stroke="#0f766e" stroke-width="6" stroke-linecap="round"/>'
 
-        damper_lines = ""
-        for y_pos in [120, 145, 175, 205, 230]:
-            rad_d = math.radians(damper_angle)
-            dx, dy = 20 * math.sin(rad_d), 20 * math.cos(rad_d)
-            damper_lines += f'<line x1="{60-dx:.1f}" y1="{y_pos-dy:.1f}" x2="{60+dx:.1f}" y2="{y_pos+dy:.1f}" stroke="#d97706" stroke-width="4"/>'
+            damper_lines = ""
+            for y_pos in [120, 145, 175, 205, 230]:
+                rad_d = math.radians(damper_angle)
+                dx, dy = 20 * math.sin(rad_d), 20 * math.cos(rad_d)
+                damper_lines += f'<line x1="{60-dx:.1f}" y1="{y_pos-dy:.1f}" x2="{60+dx:.1f}" y2="{y_pos+dy:.1f}" stroke="#d97706" stroke-width="4"/>'
 
-        return f"""
-        <div style="display:flex; justify-content:center; align-items:center; background:#ffffff; border-radius:12px; padding:4px; height: 350px; box-shadow: 0px 4px 12px rgba(11, 37, 69, 0.05);">
-        <svg width="100%" height="100%" viewBox="0 0 650 330" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg">
-            <rect x="20" y="95" width="80" height="160" fill="none" stroke="#94a3b8" stroke-width="2" stroke-dasharray="6 3"/>
-            <text x="25" y="82" fill="#0b2545" font-size="13" font-family="sans-serif" font-weight="bold">INLET DUCT</text>
-            {damper_lines}
-            <path d="M 150 75 C 80 75 80 275 180 275 C 270 275 270 30 380 30 L 380 100 C 230 100 230 200 180 200 C 150 200 150 150 180 130" fill="#f1f5f9" stroke="#0f766e" stroke-width="3"/>
-            <circle cx="180" cy="175" r="78" fill="none" stroke="#64748b" stroke-width="1.5" stroke-dasharray="4 4"/>
-            {blade_svg}
-            <circle cx="180" cy="175" r="20" fill="#94a3b8" stroke="#334155" stroke-width="3"/>
-            <rect x="200" y="167" width="180" height="16" fill="#64748b" stroke="#334155"/>
-            <rect x="290" y="145" width="50" height="60" rx="4" fill="{bearing_color}" stroke="#ffffff" stroke-width="2"/>
-            <text x="293" y="132" fill="#0b2545" font-size="12" font-family="sans-serif" font-weight="bold">BEARING</text>
-            <rect x="380" y="125" width="120" height="95" rx="6" fill="#0b2545" stroke="#0f766e" stroke-width="2"/>
-            <text x="395" y="177" fill="#ffffff" font-size="13" font-family="sans-serif" font-weight="bold">HV MOTOR</text>
-            <rect x="380" y="20" width="230" height="80" fill="none" stroke="#94a3b8" stroke-width="2"/>
-            <text x="430" y="60" fill="#0b2545" font-size="13" font-family="sans-serif" font-weight="bold">TO ESP / CHIMNEY</text>
-        </svg>
-        </div>
-        """
+            return f"""
+            <div style="display:flex; justify-content:center; align-items:center; background:#ffffff; border-radius:12px; padding:4px; height: 350px; box-shadow: 0px 4px 12px rgba(11, 37, 69, 0.05);">
+            <svg width="100%" height="100%" viewBox="0 0 650 330" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg">
+                <rect x="20" y="95" width="80" height="160" fill="none" stroke="#94a3b8" stroke-width="2" stroke-dasharray="6 3"/>
+                <text x="25" y="82" fill="#0b2545" font-size="13" font-family="sans-serif" font-weight="bold">INLET DUCT</text>
+                {damper_lines}
+                <path d="M 150 75 C 80 75 80 275 180 275 C 270 275 270 30 380 30 L 380 100 C 230 100 230 200 180 200 C 150 200 150 150 180 130" fill="#f1f5f9" stroke="#0f766e" stroke-width="3"/>
+                <circle cx="180" cy="175" r="78" fill="none" stroke="#64748b" stroke-width="1.5" stroke-dasharray="4 4"/>
+                {blade_svg}
+                <circle cx="180" cy="175" r="20" fill="#94a3b8" stroke="#334155" stroke-width="3"/>
+                <rect x="200" y="167" width="180" height="16" fill="#64748b" stroke="#334155"/>
+                <rect x="290" y="145" width="50" height="60" rx="4" fill="{bearing_color}" stroke="#ffffff" stroke-width="2"/>
+                <text x="293" y="132" fill="#0b2545" font-size="12" font-family="sans-serif" font-weight="bold">BEARING</text>
+                <rect x="380" y="125" width="120" height="95" rx="6" fill="#0b2545" stroke="#0f766e" stroke-width="2"/>
+                <text x="395" y="177" fill="#ffffff" font-size="13" font-family="sans-serif" font-weight="bold">HV MOTOR</text>
+                <rect x="380" y="20" width="230" height="80" fill="none" stroke="#94a3b8" stroke-width="2"/>
+                <text x="430" y="60" fill="#0b2545" font-size="13" font-family="sans-serif" font-weight="bold">TO ESP / CHIMNEY</text>
+            </svg>
+            </div>
+            """
 
-    st.components.v1.html(render_fan_svg(st.session_state.rotation_angle, damper_pct, vibration), height=358)
+        st.components.v1.html(render_fan_svg(st.session_state.rotation_angle, damper_pct, vibration), height=358)
 
-    st.markdown("<h3 style='color:#0b2545 !important; font-weight:800; font-size:1.05rem; margin-bottom: 6px;'>🛠️ Prescriptive Action Plan</h3>", unsafe_allow_html=True)
-    act1, act2 = st.columns(2)
-    with act1:
-        if bearing_health < 50:
-            st.error("Bearing: Critical wear. Schedule sleeve replacement.")
-        elif bearing_health < 80:
-            st.warning("Bearing: Flush lube oil & check alignment.")
+        st.markdown("<h3 style='color:#0b2545 !important; font-weight:800; font-size:1.05rem; margin-bottom: 6px;'>🛠️ Prescriptive Action Plan</h3>", unsafe_allow_html=True)
+        act1, act2 = st.columns(2)
+        with act1:
+            if bearing_health < 50:
+                st.error("Bearing: Critical wear. Schedule sleeve replacement.")
+            elif bearing_health < 80:
+                st.warning("Bearing: Flush lube oil & check alignment.")
+            else:
+                st.success("Bearing: Condition optimal.")
+        with act2:
+            if blade_health < 50:
+                st.error("Blades: High ash load. Execute soot blowing & weld buildup.")
+            elif blade_health < 80:
+                st.warning("Blades: Perform dynamic rotor balancing.")
+            else:
+                st.success("Blades: Aerodynamics nominal.")
+
+    with col_right:
+        st.markdown("<h3 style='color:#0b2545 !important; font-weight:800; font-size:1.05rem; margin-bottom: 6px;'>📊 Live Telemetry Trends</h3>", unsafe_allow_html=True)
+        
+        fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(6.5, 5.1), sharex=True)
+        fig.patch.set_facecolor('#ffffff')
+
+        for ax in (ax1, ax2, ax3):
+            ax.set_facecolor('#f8fafc')
+            ax.tick_params(colors='#334155', labelsize=8)
+            ax.xaxis.label.set_color('#334155')
+            ax.yaxis.label.set_color('#334155')
+            ax.grid(True, linestyle="--", alpha=0.5, color="#cbd5e1")
+
+        ax1.plot(st.session_state.history["Draft_mmWC"].values, color="#0b2545", lw=2)
+        ax1.set_ylabel("Draft (mmWC)", fontsize=9, color="#0b2545", weight="bold")
+
+        ax2.plot(st.session_state.history["Power_kW"].values, color="#0f766e", lw=2)
+        ax2.set_ylabel("Power (kW)", fontsize=9, color="#0f766e", weight="bold")
+
+        ax3.plot(st.session_state.history["Vibration_mms"].values, color="#d97706", lw=2)
+        ax3.set_ylabel("Vib (mm/s)", fontsize=9, color="#d97706", weight="bold")
+        ax3.set_xlabel("Time Step Buffer", fontsize=8, color="#334155")
+
+        plt.tight_layout(pad=0.5)
+        st.pyplot(fig, use_container_width=True)
+
+with tab_chat:
+    st.markdown("<h3 style='color:#0b2545 !important; font-weight:800; font-size:1.1rem;'>💬 ID Fan AI Technical Assistant</h3>", unsafe_allow_html=True)
+    st.caption("Ask contextual questions regarding live telemetry, fault diagnosis, or power plant operating procedures.")
+
+    # Render Chat History
+    for msg in st.session_state.chat_messages:
+        with st.chat_message(msg["role"]):
+            st.markdown(msg["content"])
+
+    # Knowledge Engine
+    def get_ai_response(query):
+        q = query.lower()
+        if any(w in q for w in ["telemetry", "status", "current", "reading", "state"]):
+            return (
+                f"**Current ID Fan Operational Summary:**\n"
+                f"* **Speed:** {speed_rpm} RPM\n"
+                f"* **Flow Rate:** {flow:,.0f} m³/h\n"
+                f"* **Furnace Draft:** {draft:.1f} mmWC\n"
+                f"* **Motor Load:** {power:.1f} kW ({current:.1f} A)\n"
+                f"* **Vibration:** {vibration:.2f} mm/s RMS\n"
+                f"* **Remaining Useful Life (RUL):** {rul_days} days"
+            )
+        elif any(w in q for w in ["vibration", "bearing", "noise", "shake"]):
+            status = "CRITICAL" if vibration > 7.1 else ("WARNING" if vibration > 4.5 else "NORMAL")
+            action = (
+                "Execute emergency shutdown & sleeve bearing replacement immediately." if vibration > 7.1 
+                else ("Schedule lube oil flushing and dynamic shaft re-alignment." if vibration > 4.5 
+                else "Bearing vibration is within nominal limits (< 4.5 mm/s).")
+            )
+            return (
+                f"**Bearing & Vibration Diagnostic:**\n"
+                f"* Current Vibration RMS: **{vibration:.2f} mm/s** ({status})\n"
+                f"* Estimated Bearing Condition: **{bearing_health:.0f}%**\n"
+                f"* **Prescriptive Action:** {action}"
+            )
+        elif any(w in q for w in ["draft", "flow", "damper", "igv", "suction"]):
+            return (
+                f"**Aerodynamic Performance Analysis:**\n"
+                f"* **Damper Opening:** {damper_pct}%\n"
+                f"* **Furnace Draft Suction:** {draft:.1f} mmWC\n"
+                f"* **Flue Gas Temp:** {flue_gas_temp} °C\n"
+                f"* **Blade Condition:** {blade_health}%\n\n"
+                f"Opening the IGV damper increases volumetric airflow into the ESP/Chimney, creating higher negative draft inside the boiler furnace."
+            )
+        elif any(w in q for w in ["maintenance", "rul", "repair", "overhaul", "schedule"]):
+            return (
+                f"**Predictive Maintenance Prognosis:**\n"
+                f"* **Remaining Useful Life (RUL):** {rul_days} Days\n"
+                f"* **Projected Maintenance Date:** {next_maint_date.strftime('%B %d, %Y')}\n"
+                f"* Days since last overhaul: {days_since_maint} days\n"
+                f"* Cumulative run time: {cumulative_run_hrs} kHrs."
+            )
         else:
-            st.success("Bearing: Condition optimal.")
-    with act2:
-        if blade_health < 50:
-            st.error("Blades: High ash load. Execute soot blowing & weld buildup.")
-        elif blade_health < 80:
-            st.warning("Blades: Perform dynamic rotor balancing.")
-        else:
-            st.success("Blades: Aerodynamics nominal.")
+            return (
+                f"Regarding your query **\"{query}\"**:\n\n"
+                f"The Induced Draft (ID) fan is maintaining a speed of **{speed_rpm} RPM** producing **{draft:.1f} mmWC** furnace suction. "
+                f"Bearing vibration is currently **{vibration:.2f} mm/s** with an RUL of **{rul_days} days**. "
+                f"Let me know if you need specific advice on maintenance, damper control, or bearing lubrication!"
+            )
 
-# --- RIGHT COLUMN: Telemetry Trends ---
-with col_right:
-    st.markdown("<h3 style='color:#0b2545 !important; font-weight:800; font-size:1.05rem; margin-bottom: 6px;'>📊 Live Telemetry Trends</h3>", unsafe_allow_html=True)
-    
-    fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(6.5, 5.1), sharex=True)
-    fig.patch.set_facecolor('#ffffff')
+    if user_prompt := st.chat_input("Ask a question about the ID Fan..."):
+        st.session_state.chat_messages.append({"role": "user", "content": user_prompt})
+        with st.chat_message("user"):
+            st.markdown(user_prompt)
 
-    for ax in (ax1, ax2, ax3):
-        ax.set_facecolor('#f8fafc')
-        ax.tick_params(colors='#334155', labelsize=8)
-        ax.xaxis.label.set_color('#334155')
-        ax.yaxis.label.set_color('#334155')
-        ax.grid(True, linestyle="--", alpha=0.5, color="#cbd5e1")
+        bot_reply = get_ai_response(user_prompt)
+        st.session_state.chat_messages.append({"role": "assistant", "content": bot_reply})
+        with st.chat_message("assistant"):
+            st.markdown(bot_reply)
 
-    # Plot 1: Furnace Draft
-    ax1.plot(st.session_state.history["Draft_mmWC"].values, color="#0b2545", lw=2)
-    ax1.set_ylabel("Draft (mmWC)", fontsize=9, color="#0b2545", weight="bold")
-
-    # Plot 2: Power Draw
-    ax2.plot(st.session_state.history["Power_kW"].values, color="#0f766e", lw=2)
-    ax2.set_ylabel("Power (kW)", fontsize=9, color="#0f766e", weight="bold")
-
-    # Plot 3: Bearing Vibration
-    ax3.plot(st.session_state.history["Vibration_mms"].values, color="#d97706", lw=2)
-    ax3.set_ylabel("Vib (mm/s)", fontsize=9, color="#d97706", weight="bold")
-    ax3.set_xlabel("Time Step Buffer", fontsize=8, color="#334155")
-
-    plt.tight_layout(pad=0.5)
-    st.pyplot(fig, use_container_width=True)
-
-st.markdown("---")
-
-# --- BOTTOM SECTION: Integrated ID Fan AI Assistant Chatbot ---
-st.markdown("<h3 style='color:#0b2545 !important; font-weight:800; font-size:1.1rem; margin-bottom: 4px;'>🤖 ID Fan AI Assistant</h3>", unsafe_allow_html=True)
-st.caption("Ask questions regarding current fan telemetry, diagnostics, or operational troubleshooting.")
-
-# Render previous messages
-for msg in st.session_state.chat_messages:
-    with st.chat_message(msg["role"]):
-        st.markdown(msg["content"])
-
-# Expert Rules & AI Knowledge Assistant Logic
-def get_ai_response(query):
-    q = query.lower()
-    
-    # 1. Telemetry Query
-    if "telemetry" in q or "status" in q or "current" in q or "readings" in q:
-        return f"**Live ID Fan Telemetry Context:**\n- **Speed:** {speed_rpm} RPM\n- **Flow Rate:** {flow:,.0f} m³/h\n- **Furnace Draft:** {draft:.1f} mmWC\n- **Power Draw:** {power:.1f} kW ({current:.1f} A)\n- **Vibration:** {vibration:.2f} mm/s RMS\n- **Remaining Useful Life (RUL):** {rul_days} days"
-    
-    # 2. Vibration / Bearing Query
-    elif "vibration" in q or "bearing" in q:
-        status = "CRITICAL" if vibration > 7.1 else ("WARNING" if vibration > 4.5 else "NORMAL")
-        return f"**Bearing & Vibration Analysis:**\n- Current RMS Vibration: **{vibration:.2f} mm/s** ({status})\n- Estimated Bearing Condition: **{bearing_health:.0f}%**\n- **Action:** {'Execute emergency shutdown & sleeve bearing replacement immediately.' if vibration > 7.1 else ('Schedule lube oil flushing and dynamic shaft re-alignment.' if vibration > 4.5 else 'Bearing vibration is within nominal limits (<4.5 mm/s).')}"
-    
-    # 3. Draft / Flow / Damper Query
-    elif "draft" in q or "flow" in q or "damper" in q or "igv" in q:
-        return f"**Aerodynamic Performance:**\n- **Damper Position:** {damper_pct}%\n- **Furnace Draft:** {draft:.1f} mmWC\n- **Flue Gas Temp:** {flue_gas_temp} °C\n- **Blade Aerodynamic Health:** {blade_health}%\n\n*Note: Lowering damper position reduces total flue gas flow rate and lowers furnace suction pressure.*"
-    
-    # 4. Maintenance / RUL Query
-    elif "maintenance" in q or "rul" in q or "when" in q or "repair" in q:
-        return f"**Prognostics & Maintenance Schedule:**\n- **Remaining Useful Life (RUL):** {rul_days} Days\n- **Projected Maintenance Date:** {next_maint_date.strftime('%B %d, %Y')}\n- Days since last major overhaul: {days_since_maint} days\n- Total operating hours: {cumulative_run_hrs} kHrs."
-    
-    # 5. General / Failure modes
-    elif "what is" in q or "how" in q or "function" in q:
-        return "An **Induced Draft (ID) Fan** is located near the flue gas outlet between the Electrostatic Precipitator (ESP) and the chimney. Its primary function is to create negative draft pressure inside the boiler furnace to safely draw flue gas out into the atmosphere."
-    
-    else:
-        return f"I have recorded your query regarding: *\"{query}\"*. Based on current operational parameters (**{speed_rpm} RPM**, **{vibration:.2f} mm/s vibration**, and **{rul_days} days RUL**), the system is running under normal limits. Feel free to ask about maintenance, draft pressure, or vibration alerts!"
-
-# User Chat Input
-if user_prompt := st.chat_input("Type your question about the ID Fan here..."):
-    # Add user prompt to history
-    st.session_state.chat_messages.append({"role": "user", "content": user_prompt})
-    with st.chat_message("user"):
-        st.markdown(user_prompt)
-
-    # Generate & add bot response
-    bot_reply = get_ai_response(user_prompt)
-    st.session_state.chat_messages.append({"role": "assistant", "content": bot_reply})
-    with st.chat_message("assistant"):
-        st.markdown(bot_reply)
-
-# Auto-stream tick
-time.sleep(0.4)
-st.rerun()
+# Sidebar checkbox to toggle live streaming cleanly
+st.sidebar.markdown("---")
+auto_stream = st.sidebar.checkbox("Auto-Stream Live Telemetry", value=True)
+if auto_stream:
+    time.sleep(0.4)
+    st.rerun()
