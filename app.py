@@ -15,7 +15,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- Custom CSS for Light Grey Theme & White/Blue Metric Cards ---
+# --- Custom CSS for Light Grey Theme & Clean Borderless Styling ---
 st.markdown("""
     <style>
         /* Overall Page & App Background (Light Grey) */
@@ -103,16 +103,16 @@ next_maint_date = datetime.now() + timedelta(days=rul_days)
 new_row = pd.DataFrame([{"Draft_mmWC": draft, "Power_kW": power, "Vibration_mms": vibration}])
 st.session_state.history = pd.concat([st.session_state.history, new_row], ignore_index=True).tail(35)
 
-# --- Helper Function for Custom White & Blue HTML Metric Cards ---
+# --- Helper Function for Custom White & Blue HTML Metric Cards (No Blue Border) ---
 def custom_metric(label, value):
     return f"""
     <div style="
         background-color: #ffffff; 
-        border: 2px solid #0056b3; 
+        border: 1px solid #e2e8f0; 
         border-radius: 8px; 
         padding: 8px 12px; 
         text-align: center;
-        box-shadow: 0px 4px 10px rgba(0, 86, 179, 0.12);
+        box-shadow: 0px 2px 6px rgba(0, 0, 0, 0.04);
     ">
         <div style="
             color: #004b87; 
@@ -144,9 +144,9 @@ st.markdown("---")
 # --- Equal Width & Height Column Layout ---
 col_left, col_right = st.columns([1, 1])
 
-# --- LEFT COLUMN: Schematic Diagram ---
+# --- LEFT COLUMN: Schematic Diagram (Mimic Container with Neutral Border) ---
 with col_left:
-    st.markdown("<span style='color:#0056b3; font-weight:bold; font-size:1.05rem;'>🖥️ Digital Twin Schematic Diagram</span>", unsafe_allow_html=True)
+    st.markdown("<span style='color:#004b87; font-weight:bold; font-size:1.05rem;'>🖥️ Digital Twin Schematic Diagram</span>", unsafe_allow_html=True)
     
     def render_fan_svg(angle, damper_val, vib_val):
         bearing_color = "#28a745" if vib_val < 4.5 else ("#ffc107" if vib_val < 7.1 else "#dc3545")
@@ -165,9 +165,9 @@ with col_left:
             damper_lines += f'<line x1="{60-dx:.1f}" y1="{y_pos-dy:.1f}" x2="{60+dx:.1f}" y2="{y_pos+dy:.1f}" stroke="#d97706" stroke-width="4"/>'
 
         return f"""
-        <div style="display:flex; justify-content:center; align-items:center; background:#ffffff; border-radius:8px; border:2px solid #0056b3; padding:4px; height: 350px; box-shadow: 0px 4px 10px rgba(0,0,0,0.05);">
+        <div style="display:flex; justify-content:center; align-items:center; background:#ffffff; border-radius:8px; border:1px solid #cbd5e1; padding:4px; height: 350px; box-shadow: 0px 2px 6px rgba(0,0,0,0.04);">
         <svg width="100%" height="100%" viewBox="0 0 650 330" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg">
-            <rect x="20" y="95" width="80" height="160" fill="none" stroke="#0056b3" stroke-width="2" stroke-dasharray="6 3"/>
+            <rect x="20" y="95" width="80" height="160" fill="none" stroke="#64748b" stroke-width="2" stroke-dasharray="6 3"/>
             <text x="25" y="82" fill="#1a252c" font-size="13" font-family="sans-serif" font-weight="bold">INLET DUCT</text>
             {damper_lines}
             <path d="M 150 75 C 80 75 80 275 180 275 C 270 275 270 30 380 30 L 380 100 C 230 100 230 200 180 200 C 150 200 150 150 180 130" fill="#e2e8f0" stroke="#475569" stroke-width="3"/>
@@ -179,7 +179,7 @@ with col_left:
             <text x="293" y="132" fill="#1a252c" font-size="12" font-family="sans-serif" font-weight="bold">BEARING</text>
             <rect x="380" y="125" width="120" height="95" rx="6" fill="#0284c7" stroke="#0369a1" stroke-width="2"/>
             <text x="395" y="177" fill="#ffffff" font-size="13" font-family="sans-serif" font-weight="bold">HV MOTOR</text>
-            <rect x="380" y="20" width="230" height="80" fill="none" stroke="#0056b3" stroke-width="2"/>
+            <rect x="380" y="20" width="230" height="80" fill="none" stroke="#64748b" stroke-width="2"/>
             <text x="430" y="60" fill="#1a252c" font-size="13" font-family="sans-serif" font-weight="bold">TO ESP / CHIMNEY</text>
         </svg>
         </div>
@@ -188,7 +188,7 @@ with col_left:
     st.components.v1.html(render_fan_svg(st.session_state.rotation_angle, damper_pct, vibration), height=358)
 
     # Prescriptive Actions Plan
-    st.markdown("<span style='color:#0056b3; font-weight:bold; font-size:1.05rem;'>🛠️ Prescriptive Action Plan</span>", unsafe_allow_html=True)
+    st.markdown("<span style='color:#004b87; font-weight:bold; font-size:1.05rem;'>🛠️ Prescriptive Action Plan</span>", unsafe_allow_html=True)
     act1, act2 = st.columns(2)
     with act1:
         if bearing_health < 50:
@@ -205,9 +205,9 @@ with col_left:
         else:
             st.success("Blades: Aerodynamics nominal.")
 
-# --- RIGHT COLUMN: Telemetry Trends (Light Theme Plots) ---
+# --- RIGHT COLUMN: Telemetry Trends ---
 with col_right:
-    st.markdown("<span style='color:#0056b3; font-weight:bold; font-size:1.05rem;'>📊 Live Telemetry Trends</span>", unsafe_allow_html=True)
+    st.markdown("<span style='color:#004b87; font-weight:bold; font-size:1.05rem;'>📊 Live Telemetry Trends</span>", unsafe_allow_html=True)
     
     fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(6.5, 5.1), sharex=True)
     fig.patch.set_facecolor('#ffffff')
