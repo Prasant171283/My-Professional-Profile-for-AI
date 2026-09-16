@@ -15,18 +15,18 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- Custom CSS for Light Grey Theme & Clean Borderless Styling ---
+# --- Custom CSS for Light Dashboard & Image-Matched Metric Cards ---
 st.markdown("""
     <style>
-        /* Overall Page & App Background (Light Grey) */
-        .stApp { background-color: #f0f2f5 !important; }
+        /* Page Background matching light aesthetic */
+        .stApp { background-color: #eef4fa !important; }
         .block-container { padding-top: 1rem; padding-bottom: 0rem; padding-left: 1.5rem; padding-right: 1.5rem; }
         
         /* Headers & Main Text Colors */
-        h1 { margin-bottom: 0px !important; font-size: 1.6rem !important; color: #1a252c !important; }
+        h1 { margin-bottom: 0px !important; font-size: 1.6rem !important; color: #0b2545 !important; }
         .stMarkdown p { margin-bottom: 0.2rem !important; font-size: 0.85rem !important; color: #1a252c !important; }
         .stAlert { padding: 4px 8px !important; margin-bottom: 0px !important; font-size: 0.8rem !important; }
-        hr { margin: 8px 0px !important; border-color: #cfd8dc !important; }
+        hr { margin: 8px 0px !important; border-color: #d0dbe7 !important; }
         div[data-testid="stHorizontalBlock"] { align-items: stretch !important; }
     </style>
 """, unsafe_allow_html=True)
@@ -103,50 +103,91 @@ next_maint_date = datetime.now() + timedelta(days=rul_days)
 new_row = pd.DataFrame([{"Draft_mmWC": draft, "Power_kW": power, "Vibration_mms": vibration}])
 st.session_state.history = pd.concat([st.session_state.history, new_row], ignore_index=True).tail(35)
 
-# --- Helper Function for Custom White & Blue HTML Metric Cards (No Blue Border) ---
-def custom_metric(label, value):
+# --- Helper Function for Image-Matched Custom HTML Metric Cards ---
+def custom_metric_card(icon_svg, icon_bg, label, value, unit, subtext):
     return f"""
     <div style="
         background-color: #ffffff; 
-        border: 1px solid #e2e8f0; 
-        border-radius: 8px; 
-        padding: 8px 12px; 
-        text-align: center;
-        box-shadow: 0px 2px 6px rgba(0, 0, 0, 0.04);
+        border-radius: 12px; 
+        padding: 12px 14px; 
+        box-shadow: 0px 4px 12px rgba(11, 37, 69, 0.06);
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        min-height: 82px;
     ">
         <div style="
-            color: #004b87; 
-            font-size: 0.82rem; 
-            font-weight: 800; 
-            text-transform: uppercase; 
-            letter-spacing: 0.5px;
-            margin-bottom: 2px;
-        ">{label}</div>
-        <div style="
-            color: #0072ce; 
-            font-size: 1.25rem; 
-            font-weight: 900;
-        ">{value}</div>
+            background-color: {icon_bg};
+            border-radius: 10px;
+            width: 42px;
+            height: 42px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        ">
+            {icon_svg}
+        </div>
+        <div style="display: flex; flex-direction: column; justify-content: center;">
+            <div style="
+                color: #5c6e84; 
+                font-size: 0.72rem; 
+                font-weight: 800; 
+                text-transform: uppercase; 
+                letter-spacing: 0.6px;
+                line-height: 1;
+                margin-bottom: 4px;
+            ">{label}</div>
+            <div style="line-height: 1.1;">
+                <span style="
+                    color: #0b2545; 
+                    font-size: 1.35rem; 
+                    font-weight: 900;
+                    letter-spacing: -0.5px;
+                ">{value}</span>
+                <span style="
+                    color: #64748b; 
+                    font-size: 0.75rem; 
+                    font-weight: 700;
+                    margin-left: 2px;
+                ">{unit}</span>
+            </div>
+            <div style="
+                color: #8fa0b5; 
+                font-size: 0.72rem; 
+                font-weight: 600;
+                margin-top: 3px;
+                line-height: 1;
+            ">{subtext}</div>
+        </div>
     </div>
     """
 
-# --- Top Metrics Header ---
+# --- SVG Icons for Metric Cards ---
+fan_icon = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#0b2545" stroke-width="2.2"><path d="M12 12m-3 0a3 3 0 1 0 6 0a3 3 0 1 0 -6 0"/><path d="M12 9c0 -3.5 2.5 -6 5.5 -6c0 3.5 -2.5 6 -5.5 6z"/><path d="M15 12c3.5 0 6 2.5 6 5.5c-3.5 0 -6 -2.5 -6 -5.5z"/><path d="M12 15c0 3.5 -2.5 6 -5.5 6c0 -3.5 2.5 -6 5.5 -6z"/><path d="M9 12c-3.5 0 -6 -2.5 -6 -5.5c3.5 0 6 2.5 6 5.5z"/></svg>'
+draft_icon = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2.2"><path d="M12 4v16M8 8l4-4 4 4M8 16l4 4 4-4"/></svg>'
+power_icon = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#0284c7" stroke-width="2.2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>'
+current_icon = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2.2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>'
+rul_icon = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2.2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>'
+date_icon = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="2.2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>'
+
+# --- Top Metrics Header (Matched Card Visuals) ---
 m1, m2, m3, m4, m5, m6 = st.columns(6)
-m1.markdown(custom_metric("Flow Rate", f"{flow:,.0f} m³/h"), unsafe_allow_html=True)
-m2.markdown(custom_metric("Furnace Draft", f"{draft:.1f} mmWC"), unsafe_allow_html=True)
-m3.markdown(custom_metric("Motor Power", f"{power:.1f} kW"), unsafe_allow_html=True)
-m4.markdown(custom_metric("Current", f"{current:.1f} A"), unsafe_allow_html=True)
-m5.markdown(custom_metric("Useful Life (RUL)", f"{rul_days} Days"), unsafe_allow_html=True)
-m6.markdown(custom_metric("Next Maint.", next_maint_date.strftime("%b %d, %Y")), unsafe_allow_html=True)
+m1.markdown(custom_metric_card(fan_icon, "#e0f2fe", "FLOW RATE", f"{flow:,.0f}", "m³/h", "Operational Output"), unsafe_allow_html=True)
+m2.markdown(custom_metric_card(draft_icon, "#fef3c7", "FURNACE DRAFT", f"{draft:.1f}", "mmWC", "Suction Pressure"), unsafe_allow_html=True)
+m3.markdown(custom_metric_card(power_icon, "#e0f2fe", "MOTOR POWER", f"{power:.1f}", "kW", "Active Load"), unsafe_allow_html=True)
+m4.markdown(custom_metric_card(current_icon, "#dcfce7", "CURRENT", f"{current:.1f}", "A", "6.6 kV Line Draw"), unsafe_allow_html=True)
+m5.markdown(custom_metric_card(rul_icon, "#dbeafe", "USEFUL LIFE", f"{rul_days}", "Days", "Prognosis RUL"), unsafe_allow_html=True)
+m6.markdown(custom_metric_card(date_icon, "#fee2e2", "NEXT MAINT.", next_maint_date.strftime("%b %d"), next_maint_date.strftime("%Y"), "Target Schedule"), unsafe_allow_html=True)
 
 st.markdown("---")
 
 # --- Equal Width & Height Column Layout ---
 col_left, col_right = st.columns([1, 1])
 
-# --- LEFT COLUMN: Schematic Diagram (Mimic Container with Neutral Border) ---
+# --- LEFT COLUMN: Schematic Diagram ---
 with col_left:
-    st.markdown("<span style='color:#004b87; font-weight:bold; font-size:1.05rem;'>🖥️ Digital Twin Schematic Diagram</span>", unsafe_allow_html=True)
+    st.markdown("<span style='color:#0b2545; font-weight:800; font-size:1.05rem;'>🖥️ Digital Twin Schematic Diagram</span>", unsafe_allow_html=True)
     
     def render_fan_svg(angle, damper_val, vib_val):
         bearing_color = "#28a745" if vib_val < 4.5 else ("#ffc107" if vib_val < 7.1 else "#dc3545")
@@ -156,7 +197,7 @@ with col_left:
         for i in range(8):
             rad = math.radians(angle + (i * 45))
             x2, y2 = 180 + 72 * math.cos(rad), 175 + 72 * math.sin(rad)
-            blade_svg += f'<line x1="180" y1="175" x2="{x2:.1f}" y2="{y2:.1f}" stroke="#0072ce" stroke-width="6" stroke-linecap="round"/>'
+            blade_svg += f'<line x1="180" y1="175" x2="{x2:.1f}" y2="{y2:.1f}" stroke="#0284c7" stroke-width="6" stroke-linecap="round"/>'
 
         damper_lines = ""
         for y_pos in [120, 145, 175, 205, 230]:
@@ -165,10 +206,10 @@ with col_left:
             damper_lines += f'<line x1="{60-dx:.1f}" y1="{y_pos-dy:.1f}" x2="{60+dx:.1f}" y2="{y_pos+dy:.1f}" stroke="#d97706" stroke-width="4"/>'
 
         return f"""
-        <div style="display:flex; justify-content:center; align-items:center; background:#ffffff; border-radius:8px; border:1px solid #cbd5e1; padding:4px; height: 350px; box-shadow: 0px 2px 6px rgba(0,0,0,0.04);">
+        <div style="display:flex; justify-content:center; align-items:center; background:#ffffff; border-radius:12px; border:1px solid #cbd5e1; padding:4px; height: 350px; box-shadow: 0px 4px 12px rgba(11, 37, 69, 0.05);">
         <svg width="100%" height="100%" viewBox="0 0 650 330" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg">
             <rect x="20" y="95" width="80" height="160" fill="none" stroke="#64748b" stroke-width="2" stroke-dasharray="6 3"/>
-            <text x="25" y="82" fill="#1a252c" font-size="13" font-family="sans-serif" font-weight="bold">INLET DUCT</text>
+            <text x="25" y="82" fill="#0b2545" font-size="13" font-family="sans-serif" font-weight="bold">INLET DUCT</text>
             {damper_lines}
             <path d="M 150 75 C 80 75 80 275 180 275 C 270 275 270 30 380 30 L 380 100 C 230 100 230 200 180 200 C 150 200 150 150 180 130" fill="#e2e8f0" stroke="#475569" stroke-width="3"/>
             <circle cx="180" cy="175" r="78" fill="none" stroke="#475569" stroke-width="1.5" stroke-dasharray="4 4"/>
@@ -176,11 +217,11 @@ with col_left:
             <circle cx="180" cy="175" r="20" fill="#94a3b8" stroke="#334155" stroke-width="3"/>
             <rect x="200" y="167" width="180" height="16" fill="#64748b" stroke="#334155"/>
             <rect x="290" y="145" width="50" height="60" rx="4" fill="{bearing_color}" stroke="#ffffff" stroke-width="2"/>
-            <text x="293" y="132" fill="#1a252c" font-size="12" font-family="sans-serif" font-weight="bold">BEARING</text>
+            <text x="293" y="132" fill="#0b2545" font-size="12" font-family="sans-serif" font-weight="bold">BEARING</text>
             <rect x="380" y="125" width="120" height="95" rx="6" fill="#0284c7" stroke="#0369a1" stroke-width="2"/>
             <text x="395" y="177" fill="#ffffff" font-size="13" font-family="sans-serif" font-weight="bold">HV MOTOR</text>
             <rect x="380" y="20" width="230" height="80" fill="none" stroke="#64748b" stroke-width="2"/>
-            <text x="430" y="60" fill="#1a252c" font-size="13" font-family="sans-serif" font-weight="bold">TO ESP / CHIMNEY</text>
+            <text x="430" y="60" fill="#0b2545" font-size="13" font-family="sans-serif" font-weight="bold">TO ESP / CHIMNEY</text>
         </svg>
         </div>
         """
@@ -188,7 +229,7 @@ with col_left:
     st.components.v1.html(render_fan_svg(st.session_state.rotation_angle, damper_pct, vibration), height=358)
 
     # Prescriptive Actions Plan
-    st.markdown("<span style='color:#004b87; font-weight:bold; font-size:1.05rem;'>🛠️ Prescriptive Action Plan</span>", unsafe_allow_html=True)
+    st.markdown("<span style='color:#0b2545; font-weight:800; font-size:1.05rem;'>🛠️ Prescriptive Action Plan</span>", unsafe_allow_html=True)
     act1, act2 = st.columns(2)
     with act1:
         if bearing_health < 50:
@@ -207,7 +248,7 @@ with col_left:
 
 # --- RIGHT COLUMN: Telemetry Trends ---
 with col_right:
-    st.markdown("<span style='color:#004b87; font-weight:bold; font-size:1.05rem;'>📊 Live Telemetry Trends</span>", unsafe_allow_html=True)
+    st.markdown("<span style='color:#0b2545; font-weight:800; font-size:1.05rem;'>📊 Live Telemetry Trends</span>", unsafe_allow_html=True)
     
     fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(6.5, 5.1), sharex=True)
     fig.patch.set_facecolor('#ffffff')
