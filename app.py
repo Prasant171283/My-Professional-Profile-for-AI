@@ -15,16 +15,26 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- Custom CSS for Corporate Dashboard Aesthetic ---
+# --- Custom CSS for High-Contrast Readable Dashboard ---
 st.markdown("""
     <style>
-        /* Soft ice-blue background matching the reference screenshot */
+        /* Soft ice-blue background matching reference screenshot */
         .stApp { background-color: #e6eff8 !important; }
         .block-container { padding-top: 0.8rem; padding-bottom: 0rem; padding-left: 1.5rem; padding-right: 1.5rem; }
         
-        /* Typography */
-        h1, h2, h3 { color: #0b2545 !important; font-family: 'Segoe UI', sans-serif; }
-        .stMarkdown p { margin-bottom: 0.2rem !important; font-size: 0.85rem !important; color: #1e293b !important; }
+        /* Force Header & Title Text Visibility */
+        h1, h2, h3, .stApp h1, .stApp h2, .stApp h3 { 
+            color: #0b2545 !important; 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif !important;
+            opacity: 1 !important;
+        }
+        
+        .stMarkdown p, .stMarkdown span { 
+            margin-bottom: 0.2rem !important; 
+            font-size: 0.85rem !important; 
+            color: #1e293b !important; 
+        }
+        
         .stAlert { padding: 4px 8px !important; margin-bottom: 0px !important; font-size: 0.8rem !important; }
         hr { margin: 8px 0px !important; border-color: #cbd5e1 !important; }
         div[data-testid="stHorizontalBlock"] { align-items: stretch !important; }
@@ -56,23 +66,14 @@ st.markdown("""
             align-items: center;
             gap: 6px;
         }
-
-        /* Container Card Styling */
-        .dashboard-card {
-            background-color: #ffffff;
-            border-radius: 12px;
-            padding: 12px 16px;
-            box-shadow: 0px 4px 12px rgba(11, 37, 69, 0.06);
-            border: 1px solid #ffffff;
-        }
     </style>
 """, unsafe_allow_html=True)
 
-# --- Top Navigation Bar ---
+# --- Top Navigation Bar with Explicit High-Contrast Text ---
 nav_col1, nav_col2 = st.columns([1, 1.2])
 
 with nav_col1:
-    st.markdown("<h2 style='margin:0; font-size:1.4rem; font-weight:800; color:#0b2545;'>⚙️ ID Fan Digital Twin</h2>", unsafe_allow_html=True)
+    st.markdown("<h2 style='margin:0; font-size:1.5rem; font-weight:900; color:#0b2545 !important;'>⚙️ ID Fan Digital Twin</h2>", unsafe_allow_html=True)
 
 with nav_col2:
     st.markdown("""
@@ -180,9 +181,9 @@ def custom_metric_card(icon_svg, icon_bg, label, value, unit, subtext):
         </div>
         <div style="display: flex; flex-direction: column; justify-content: center;">
             <div style="
-                color: #64748b; 
-                font-size: 0.7rem; 
-                font-weight: 800; 
+                color: #64748b !important; 
+                font-size: 0.7rem !important; 
+                font-weight: 800 !important; 
                 text-transform: uppercase; 
                 letter-spacing: 0.6px;
                 line-height: 1;
@@ -190,22 +191,22 @@ def custom_metric_card(icon_svg, icon_bg, label, value, unit, subtext):
             ">{label}</div>
             <div style="line-height: 1.1;">
                 <span style="
-                    color: #0b2545; 
-                    font-size: 1.3rem; 
-                    font-weight: 900;
+                    color: #0b2545 !important; 
+                    font-size: 1.3rem !important; 
+                    font-weight: 900 !important;
                     letter-spacing: -0.5px;
                 ">{value}</span>
                 <span style="
-                    color: #475569; 
-                    font-size: 0.75rem; 
-                    font-weight: 700;
+                    color: #475569 !important; 
+                    font-size: 0.75rem !important; 
+                    font-weight: 700 !important;
                     margin-left: 2px;
                 ">{unit}</span>
             </div>
             <div style="
-                color: #94a3b8; 
-                font-size: 0.7rem; 
-                font-weight: 600;
+                color: #94a3b8 !important; 
+                font-size: 0.7rem !important; 
+                font-weight: 600 !important;
                 margin-top: 2px;
                 line-height: 1;
             ">{subtext}</div>
@@ -237,7 +238,7 @@ col_left, col_right = st.columns([1, 1])
 
 # --- LEFT COLUMN: Digital Twin Schematic ---
 with col_left:
-    st.markdown("<span style='color:#0b2545; font-weight:800; font-size:1.05rem;'>🖥️ Digital Twin Schematic Diagram</span>", unsafe_allow_html=True)
+    st.markdown("<h3 style='color:#0b2545 !important; font-weight:800; font-size:1.05rem; margin-bottom: 6px;'>🖥️ Digital Twin Schematic Diagram</h3>", unsafe_allow_html=True)
     
     def render_fan_svg(angle, damper_val, vib_val):
         bearing_color = "#16a34a" if vib_val < 4.5 else ("#d97706" if vib_val < 7.1 else "#dc2626")
@@ -278,7 +279,7 @@ with col_left:
 
     st.components.v1.html(render_fan_svg(st.session_state.rotation_angle, damper_pct, vibration), height=358)
 
-    st.markdown("<span style='color:#0b2545; font-weight:800; font-size:1.05rem;'>🛠️ Prescriptive Action Plan</span>", unsafe_allow_html=True)
+    st.markdown("<h3 style='color:#0b2545 !important; font-weight:800; font-size:1.05rem; margin-bottom: 6px;'>🛠️ Prescriptive Action Plan</h3>", unsafe_allow_html=True)
     act1, act2 = st.columns(2)
     with act1:
         if bearing_health < 50:
@@ -297,9 +298,8 @@ with col_left:
 
 # --- RIGHT COLUMN: Telemetry Trends ---
 with col_right:
-    st.markdown("<span style='color:#0b2545; font-weight:800; font-size:1.05rem;'>📊 Live Telemetry Trends</span>", unsafe_allow_html=True)
+    st.markdown("<h3 style='color:#0b2545 !important; font-weight:800; font-size:1.05rem; margin-bottom: 6px;'>📊 Live Telemetry Trends</h3>", unsafe_allow_html=True)
     
-    # Styled matching chart palette (Deep Navy, Teal, Amber)
     fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(6.5, 5.1), sharex=True)
     fig.patch.set_facecolor('#ffffff')
 
