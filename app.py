@@ -124,7 +124,7 @@ st.session_state.history = pd.concat([st.session_state.history, new_row], ignore
 def get_gemini_client(api_key):
     return genai.Client(api_key=api_key)
 
-# --- Streaming Gemini AI Backend with Automatic Fallback ---
+# --- Streaming Gemini AI Backend with Retries & Fallback ---
 def stream_gemini_response(query):
     api_key = st.secrets.get("GEMINI_API_KEY", None)
     
@@ -166,24 +166,33 @@ def stream_gemini_response(query):
             temperature=0.2,
         )
 
-        candidate_models = ["gemini-3.8-flash", "gemini-3.5-flash", "gemini-flash-latest"]
+        candidate_models = [
+            "gemini-2.5-flash",
+            "gemini-2.5-pro",
+            "gemini-1.5-flash"
+        ]
 
         for model_id in candidate_models:
-            try:
-                response_stream = client.models.generate_content_stream(
-                    model=model_id,
-                    contents=query,
-                    config=config
-                )
-                
-                for chunk in response_stream:
-                    if chunk.text:
-                        yield chunk.text
-                return
-            except Exception:
-                continue
+            for attempt in range(2):
+                try:
+                    response_stream = client.models.generate_content_stream(
+                        model=model_id,
+                        contents=query,
+                        config=config
+                    )
+                    
+                    for chunk in response_stream:
+                        if chunk.text:
+                            yield chunk.text
+                    return
+                except Exception as e:
+                    if "503" in str(e) or "UNAVAILABLE" in str(e):
+                        time.sleep(0.5)
+                        continue
+                    else:
+                        break
 
-        yield "🚨 **Server Busy**: All Gemini models are currently experiencing high demand. Please try again in a few moments."
+        yield "🚨 **Server Busy**: Google API is experiencing temporary high demand across all free endpoints. Please try sending your prompt again in a few seconds."
 
     except Exception as e:
         yield f"🚨 **Error contacting Gemini backend:** {str(e)}"
