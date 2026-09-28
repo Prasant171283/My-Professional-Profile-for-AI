@@ -131,19 +131,25 @@ next_maint_date = datetime.now() + timedelta(days=rul_days)
 new_row = pd.DataFrame([{"Draft_mmWC": draft_mmwc, "Power_kW": power_kw, "Vibration_mms": vibration_mm_sec}])
 st.session_state.history = pd.concat([st.session_state.history, new_row], ignore_index=True).tail(35)
 
-# --- Robust Gemini API Backend AI Response Function ---
-def ask_gemini_backend(query):
+# --- Cache Client Connection ---
+@st.cache_resource
+def get_gemini_client(api_key):
+    return genai.Client(api_key=api_key)
+
+# --- Fast Streaming Gemini AI Backend ---
+def stream_gemini_response(query):
     api_key = st.secrets.get("GEMINI_API_KEY", None)
     
     if not api_key:
-        return "⚠️ **API Key Missing**: Please set `GEMINI_API_KEY` in Streamlit secrets to enable Gemini AI."
+        yield "⚠️ **API Key Missing**: Please set `GEMINI_API_KEY` in Streamlit secrets."
+        return
 
     try:
-        client = genai.Client(api_key=api_key)
+        client = get_gemini_client(api_key)
         
         system_instruction = f"""
         You are an expert Thermal Power Plant Mechanical Engineer and Digital Twin AI Specialist.
-        Answer user questions clearly and concisely using real power plant fan physics and maintenance protocols.
+        Answer user questions clearly, concisely, and immediately using real power plant fan physics.
         
         EXACT ID FAN DESIGN & OPERATIONAL SPECIFICATIONS:
         - Speed Range: 200 to 700 RPM (Full load operating point: ~450 RPM)
@@ -169,47 +175,21 @@ def ask_gemini_backend(query):
         
         config = types.GenerateContentConfig(
             system_instruction=system_instruction,
-            temperature=0.3,
+            temperature=0.2,
         )
 
-        # Candidate names formatted for standard AI Studio endpoints
-        model_candidates = ["gemini-2.5-flash", "gemini-1.5-flash", "gemini-2.5-pro"]
-
-        # Strategy 1: Try known candidate model IDs directly
-        for model_id in model_candidates:
-            try:
-                res = client.models.generate_content(
-                    model=model_id,
-                    contents=query,
-                    config=config
-                )
-                if res and res.text:
-                    return res.text
-            except Exception:
-                continue
-
-        # Strategy 2: Dynamic discovery using client.models.list()
-        try:
-            for m in client.models.list():
-                model_name = getattr(m, 'name', '').replace("models/", "")
-                if "flash" in model_name or "gemini" in model_name:
-                    try:
-                        res = client.models.generate_content(
-                            model=model_name,
-                            contents=query,
-                            config=config
-                        )
-                        if res and res.text:
-                            return res.text
-                    except Exception:
-                        continue
-        except Exception:
-            pass
-
-        return "🚨 **Model Error**: Your API key was recognized, but no text-generation models are enabled for this specific Google Cloud/AI Studio project. Please ensure standard Gemini API access is enabled in Google AI Studio."
+        response_stream = client.models.generate_content_stream(
+            model="gemini-1.5-flash",
+            contents=query,
+            config=config
+        )
+        
+        for chunk in response_stream:
+            if chunk.text:
+                yield chunk.text
 
     except Exception as e:
-        return f"🚨 **Error contacting Gemini backend:** {str(e)}"
+        yield f"🚨 **Error contacting Gemini backend:** {str(e)}"
 
 # --- Custom Metric Card Generator ---
 def custom_metric_card(icon_svg, icon_bg, label, value, unit, subtext):
@@ -386,26 +366,25 @@ with tab_chat:
     st.markdown("<h3 style='color:#0b2545 !important; font-weight:800; font-size:1.1rem;'>💬 ID Fan AI Technical Assistant (Gemini Powered)</h3>", unsafe_allow_html=True)
     st.caption("Ask contextual questions regarding real-time telemetry, fan mechanics, power reduction strategies, or failure troubleshooting.")
 
+    # Render previous messages
     for msg in st.session_state.chat_messages:
         with st.chat_message(msg["role"]):
             st.markdown(msg["content"])
 
+    # Stream response directly to user chat input
     if user_prompt := st.chat_input("Ask Gemini about the ID Fan..."):
         st.session_state.chat_messages.append({"role": "user", "content": user_prompt})
         with st.chat_message("user"):
             st.markdown(user_prompt)
 
-        with st.spinner("Gemini is analyzing fan telemetry..."):
-            bot_reply = ask_gemini_backend(user_prompt)
-
-        st.session_state.chat_messages.append({"role": "assistant", "content": bot_reply})
         with st.chat_message("assistant"):
-            st.markdown(bot_reply)
+            full_response = st.write_stream(stream_gemini_response(user_prompt))
+
+        st.session_state.chat_messages.append({"role": "assistant", "content": full_response})
 
 # Sidebar checkbox to toggle live streaming cleanly
 st.sidebar.markdown("---")
 auto_stream = st.sidebar.checkbox("Auto-Stream Live Telemetry", value=True)
-# Only rerun auto-stream loop if NOT interacting on the Chat tab
-if auto_stream and "chat_messages" in st.session_state:
+if auto_stream:
     time.sleep(0.4)
     st.rerun()
