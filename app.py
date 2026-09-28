@@ -368,8 +368,11 @@ with tab_chat:
 
         st.session_state.chat_messages.append({"role": "assistant", "content": full_response})
 
+# --- Sidebar Auto-Stream Controls ---
 st.sidebar.markdown("---")
 auto_stream = st.sidebar.checkbox("Auto-Stream Live Telemetry", value=True)
+
+# Only rerun telemetry if explicitly enabled
 if auto_stream:
     time.sleep(0.4)
     st.rerun()
