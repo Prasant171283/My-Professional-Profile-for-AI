@@ -136,7 +136,7 @@ st.session_state.history = pd.concat([st.session_state.history, new_row], ignore
 def get_gemini_client(api_key):
     return genai.Client(api_key=api_key)
 
-# --- Dynamic Discovery Streaming Backend ---
+# --- Streaming Gemini AI Backend ---
 def stream_gemini_response(query):
     api_key = st.secrets.get("GEMINI_API_KEY", None)
     
@@ -144,82 +144,52 @@ def stream_gemini_response(query):
         yield "⚠️ **API Key Missing**: Please set `GEMINI_API_KEY` in Streamlit secrets."
         return
 
-    client = get_gemini_client(api_key)
-    
-    system_instruction = f"""
-    You are an expert Thermal Power Plant Mechanical Engineer and Digital Twin AI Specialist.
-    Answer user questions clearly, concisely, and immediately using real power plant fan physics.
-    
-    EXACT ID FAN DESIGN & OPERATIONAL SPECIFICATIONS:
-    - Speed Range: 200 to 700 RPM (Full load operating point: ~450 RPM)
-    - Airflow Range: 500 to 2,100 TPH (Full load operating point: ~1,850 TPH)
-    - Furnace Draft Control Point: Stays tightly around -5 mmWC across low and high loads.
-    - Motor Rating: 6.6 kV Line Voltage. Full load current draw is ~370 A.
-    - Vibration Thresholds: Normal full load operation is ~1.0 mm/sec. Alarm limit: > 4.5 mm/sec. EMERGENCY TRIP LIMIT: 19.0 mm/sec.
-    
-    LIVE ID FAN TELEMETRY DATA:
-    - Fan Speed: {speed_rpm:.0f} RPM
-    - Inlet Guide Vane (IGV / Damper): {damper_pct:.0f}%
-    - Flue Gas Temperature: {flue_gas_temp:.0f} °C
-    - Volumetric Airflow: {flow_tph:,.1f} TPH
-    - Furnace Draft Suction: {draft_mmwc:.1f} mmWC
-    - HV Motor Active Power: {power_kw:.1f} kW
-    - HV Motor Line Current: {current_amps:.1f} A (6.6 kV rating)
-    - Bearing Vibration: {vibration_mm_sec:.2f} mm/sec
-    - Blade Aerodynamic Health: {blade_health:.0f}%
-    - Bearing Mechanical Health: {bearing_health:.0f}%
-    - Remaining Useful Life (RUL): {rul_days} Days
-    - Projected Maintenance Date: {next_maint_date.strftime('%B %d, %Y')}
-    """
-    
-    config = types.GenerateContentConfig(
-        system_instruction=system_instruction,
-        temperature=0.2,
-    )
-
-    # Candidate list formatted for standard AI Studio endpoints
-    candidate_models = ["gemini-2.5-flash", "gemini-2.5-pro"]
-
-    # Strategy 1: Attempt generation using candidate names
-    for model_id in candidate_models:
-        try:
-            response_stream = client.models.generate_content_stream(
-                model=model_id,
-                contents=query,
-                config=config
-            )
-            for chunk in response_stream:
-                if chunk.text:
-                    yield chunk.text
-            return
-        except Exception:
-            continue
-
-    # Strategy 2: Dynamic API Discovery - Query key for active models automatically
     try:
-        available_models = [
-            m.name.replace("models/", "") 
-            for m in client.models.list() 
-            if "generateContent" in getattr(m, "supported_generation_methods", [])
-        ]
+        client = get_gemini_client(api_key)
         
-        for active_model in available_models:
-            try:
-                response_stream = client.models.generate_content_stream(
-                    model=active_model,
-                    contents=query,
-                    config=config
-                )
-                for chunk in response_stream:
-                    if chunk.text:
-                        yield chunk.text
-                return
-            except Exception:
-                continue
-    except Exception:
-        pass
+        system_instruction = f"""
+        You are an expert Thermal Power Plant Mechanical Engineer and Digital Twin AI Specialist.
+        Answer user questions clearly, concisely, and immediately using real power plant fan physics.
+        
+        EXACT ID FAN DESIGN & OPERATIONAL SPECIFICATIONS:
+        - Speed Range: 200 to 700 RPM (Full load operating point: ~450 RPM)
+        - Airflow Range: 500 to 2,100 TPH (Full load operating point: ~1,850 TPH)
+        - Furnace Draft Control Point: Stays tightly around -5 mmWC across low and high loads.
+        - Motor Rating: 6.6 kV Line Voltage. Full load current draw is ~370 A.
+        - Vibration Thresholds: Normal full load operation is ~1.0 mm/sec. Alarm limit: > 4.5 mm/sec. EMERGENCY TRIP LIMIT: 19.0 mm/sec.
+        
+        LIVE ID FAN TELEMETRY DATA:
+        - Fan Speed: {speed_rpm:.0f} RPM
+        - Inlet Guide Vane (IGV / Damper): {damper_pct:.0f}%
+        - Flue Gas Temperature: {flue_gas_temp:.0f} °C
+        - Volumetric Airflow: {flow_tph:,.1f} TPH
+        - Furnace Draft Suction: {draft_mmwc:.1f} mmWC
+        - HV Motor Active Power: {power_kw:.1f} kW
+        - HV Motor Line Current: {current_amps:.1f} A (6.6 kV rating)
+        - Bearing Vibration: {vibration_mm_sec:.2f} mm/sec
+        - Blade Aerodynamic Health: {blade_health:.0f}%
+        - Bearing Mechanical Health: {bearing_health:.0f}%
+        - Remaining Useful Life (RUL): {rul_days} Days
+        - Projected Maintenance Date: {next_maint_date.strftime('%B %d, %Y')}
+        """
+        
+        config = types.GenerateContentConfig(
+            system_instruction=system_instruction,
+            temperature=0.2,
+        )
 
-    yield "🚨 **Model Error**: Unable to contact active Gemini endpoint. Please check your AI Studio project permissions and API Key."
+        response_stream = client.models.generate_content_stream(
+            model="gemini-2.5-flash",
+            contents=query,
+            config=config
+        )
+        
+        for chunk in response_stream:
+            if chunk.text:
+                yield chunk.text
+
+    except Exception as e:
+        yield f"🚨 **Error contacting Gemini backend:** {str(e)}"
 
 # --- Custom Metric Card Generator ---
 def custom_metric_card(icon_svg, icon_bg, label, value, unit, subtext):
