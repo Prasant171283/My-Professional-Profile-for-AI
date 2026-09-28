@@ -172,19 +172,41 @@ def ask_gemini_backend(query):
             temperature=0.3,
         )
 
-        # Multi-model fallback sequence
-        for model_id in ["gemini-2.5-flash", "gemini-1.5-flash", "gemini-2.5-pro"]:
+        # Candidate names formatted for standard AI Studio endpoints
+        model_candidates = ["gemini-2.5-flash", "gemini-1.5-flash", "gemini-2.5-pro"]
+
+        # Strategy 1: Try known candidate model IDs directly
+        for model_id in model_candidates:
             try:
                 res = client.models.generate_content(
                     model=model_id,
                     contents=query,
                     config=config
                 )
-                return res.text
+                if res and res.text:
+                    return res.text
             except Exception:
                 continue
 
-        return "🚨 **Model Error**: Unable to reach an active Gemini model on your API key. Please generate a new key in Google AI Studio."
+        # Strategy 2: Dynamic discovery using client.models.list()
+        try:
+            for m in client.models.list():
+                model_name = getattr(m, 'name', '').replace("models/", "")
+                if "flash" in model_name or "gemini" in model_name:
+                    try:
+                        res = client.models.generate_content(
+                            model=model_name,
+                            contents=query,
+                            config=config
+                        )
+                        if res and res.text:
+                            return res.text
+                    except Exception:
+                        continue
+        except Exception:
+            pass
+
+        return "🚨 **Model Error**: Your API key was recognized, but no text-generation models are enabled for this specific Google Cloud/AI Studio project. Please ensure standard Gemini API access is enabled in Google AI Studio."
 
     except Exception as e:
         return f"🚨 **Error contacting Gemini backend:** {str(e)}"
