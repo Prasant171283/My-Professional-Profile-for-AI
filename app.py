@@ -95,22 +95,17 @@ st.session_state.rotation_angle = (st.session_state.rotation_angle + (speed_rpm 
 
 # --- Telemetry Engine ---
 def calculate_telemetry(speed, damper, temp, blade_h, bearing_h):
-    # Airflow Range: 500 to 2100 TPH (~1850 TPH at 450 RPM / 85% damper)
     blade_eff = blade_h / 100.0
     base_flow = 500.0 + ((speed - 200.0) / 500.0) * 1200.0 * (damper / 100.0) * 1.15
     flow_tph = min(2100.0, max(500.0, base_flow * blade_eff + random.uniform(-10.0, 10.0)))
     
-    # Furnace Pressure: Tight control around -5 mmWC
     draft_mmwc = -5.0 + random.uniform(-0.4, 0.4)
     
-    # Electrical Power & Current Physics (6.6 kV line, ~370 A at full load)
     current_amps = (flow_tph / 1850.0) * 370.0 * (speed / 450.0) ** 0.5 + random.uniform(-3.0, 3.0)
     current_amps = max(110.0, min(500.0, current_amps))
     
-    # P (kW) = sqrt(3) * V (kV) * I (A) * PF (0.88)
     power_kw = (1.732 * 6.6 * current_amps * 0.88) + random.uniform(-10.0, 10.0)
     
-    # Vibration (mm/sec): ~1.0 mm/sec normal operating point
     unbalance_vib = ((100.0 - bearing_h) / 100.0) * 8.0 * (speed / 450.0)
     blade_unbalance = ((100.0 - blade_h) / 100.0) * 5.0
     vibration_mm_sec = 0.8 + (speed / 450.0) * 0.2 + unbalance_vib + blade_unbalance + random.uniform(-0.05, 0.05)
@@ -179,7 +174,7 @@ def stream_gemini_response(query):
         )
 
         response_stream = client.models.generate_content_stream(
-            model="gemini-2.5-flash",
+            model="gemini-3.8-flash",
             contents=query,
             config=config
         )
@@ -366,12 +361,10 @@ with tab_chat:
     st.markdown("<h3 style='color:#0b2545 !important; font-weight:800; font-size:1.1rem;'>💬 ID Fan AI Technical Assistant (Gemini Powered)</h3>", unsafe_allow_html=True)
     st.caption("Ask contextual questions regarding real-time telemetry, fan mechanics, power reduction strategies, or failure troubleshooting.")
 
-    # Render previous messages
     for msg in st.session_state.chat_messages:
         with st.chat_message(msg["role"]):
             st.markdown(msg["content"])
 
-    # Stream response directly to user chat input
     if user_prompt := st.chat_input("Ask Gemini about the ID Fan..."):
         st.session_state.chat_messages.append({"role": "user", "content": user_prompt})
         with st.chat_message("user"):
@@ -382,7 +375,6 @@ with tab_chat:
 
         st.session_state.chat_messages.append({"role": "assistant", "content": full_response})
 
-# Sidebar checkbox to toggle live streaming cleanly
 st.sidebar.markdown("---")
 auto_stream = st.sidebar.checkbox("Auto-Stream Live Telemetry", value=True)
 if auto_stream:
