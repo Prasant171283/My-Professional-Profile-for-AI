@@ -160,33 +160,44 @@ def ask_gemini_backend(query):
             temperature=0.3,
         )
 
-        # Strategy 1: Try current standard production endpoints
-        for m_id in ["gemini-2.5-flash", "gemini-2.5-pro"]:
+        # Retrieve all active generation models dynamically for your API Key
+        available_models = []
+        try:
+            for m in client.models.list():
+                methods = getattr(m, "supported_generation_methods", [])
+                if "generateContent" in methods:
+                    clean_name = m.name.replace("models/", "")
+                    available_models.append(clean_name)
+        except Exception as list_err:
+            pass
+
+        # Priority list if discovery works
+        for model_id in available_models:
             try:
-                res = client.models.generate_content(model=m_id, contents=query, config=config)
+                res = client.models.generate_content(
+                    model=model_id,
+                    contents=query,
+                    config=config
+                )
                 if res and res.text:
                     return res.text
             except Exception:
                 continue
 
-        # Strategy 2: Dynamic API Discovery - Query your key directly for active models
-        try:
-            available_models = [
-                m.name.replace("models/", "") 
-                for m in client.models.list() 
-                if "generateContent" in getattr(m, "supported_generation_methods", [])
-            ]
-            for active_m in available_models:
-                try:
-                    res = client.models.generate_content(model=active_m, contents=query, config=config)
-                    if res and res.text:
-                        return res.text
-                except Exception:
-                    continue
-        except Exception:
-            pass
+        # Direct fallback attempt if model discovery list is empty
+        for fallback_id in ["gemini-3.8-flash", "gemini-3.5-flash", "gemini-2.5-flash"]:
+            try:
+                res = client.models.generate_content(
+                    model=fallback_id,
+                    contents=query,
+                    config=config
+                )
+                if res and res.text:
+                    return res.text
+            except Exception:
+                continue
 
-        return "🚨 **Model Error**: Unable to contact active Gemini endpoint. Please verify your API key in Google AI Studio."
+        return "🚨 **Model Error**: Unable to establish connection to an active model on your key. Please generate a new key in Google AI Studio."
 
     except Exception as e:
         return f"🚨 **Error contacting Gemini backend:** {str(e)}"
