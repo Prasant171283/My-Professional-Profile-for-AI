@@ -136,7 +136,7 @@ st.session_state.history = pd.concat([st.session_state.history, new_row], ignore
 def get_gemini_client(api_key):
     return genai.Client(api_key=api_key)
 
-# --- Streaming Gemini AI Backend ---
+# --- Dynamic Discovery Streaming Backend ---
 def stream_gemini_response(query):
     api_key = st.secrets.get("GEMINI_API_KEY", None)
     
@@ -177,9 +177,10 @@ def stream_gemini_response(query):
         temperature=0.2,
     )
 
-    # Sequence of supported models for streaming
+    # Candidate list formatted for standard AI Studio endpoints
     candidate_models = ["gemini-2.5-flash", "gemini-2.5-pro"]
 
+    # Strategy 1: Attempt generation using candidate names
     for model_id in candidate_models:
         try:
             response_stream = client.models.generate_content_stream(
@@ -194,7 +195,31 @@ def stream_gemini_response(query):
         except Exception:
             continue
 
-    yield "🚨 **Model Error**: Unable to contact active Gemini endpoint. Please check your AI Studio project permissions."
+    # Strategy 2: Dynamic API Discovery - Query key for active models automatically
+    try:
+        available_models = [
+            m.name.replace("models/", "") 
+            for m in client.models.list() 
+            if "generateContent" in getattr(m, "supported_generation_methods", [])
+        ]
+        
+        for active_model in available_models:
+            try:
+                response_stream = client.models.generate_content_stream(
+                    model=active_model,
+                    contents=query,
+                    config=config
+                )
+                for chunk in response_stream:
+                    if chunk.text:
+                        yield chunk.text
+                return
+            except Exception:
+                continue
+    except Exception:
+        pass
+
+    yield "🚨 **Model Error**: Unable to contact active Gemini endpoint. Please check your AI Studio project permissions and API Key."
 
 # --- Custom Metric Card Generator ---
 def custom_metric_card(icon_svg, icon_bg, label, value, unit, subtext):
