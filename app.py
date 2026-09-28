@@ -124,83 +124,32 @@ def ask_gemini_backend(query):
     api_key = st.secrets.get("GEMINI_API_KEY", None)
     
     if not api_key:
-        return "⚠️ **API Key Missing**: Please set `GEMINI_API_KEY` in Streamlit secrets to enable Gemini AI."
+        return "⚠️ **API Key Missing**: `GEMINI_API_KEY` is not set in secrets."
 
     try:
         client = genai.Client(api_key=api_key)
         
-        system_instruction = f"""
-        You are an expert Thermal Power Plant Mechanical Engineer and Digital Twin AI Specialist.
-        Answer user questions clearly and concisely using real power plant fan physics and maintenance protocols.
-        
-        EXACT ID FAN DESIGN & OPERATIONAL SPECIFICATIONS:
-        - Speed Range: 200 to 700 RPM (Full load operating point: ~450 RPM)
-        - Airflow Range: 500 to 2,100 TPH (Full load operating point: ~1,850 TPH)
-        - Furnace Draft Control Point: Stays tightly around -5 mmWC across low and high loads.
-        - Motor Rating: 6.6 kV Line Voltage. Full load current draw is ~370 A.
-        - Vibration Thresholds: Normal full load operation is ~1.0 mm/sec. Alarm limit: > 4.5 mm/sec. EMERGENCY TRIP LIMIT: 19.0 mm/sec.
-        
-        LIVE ID FAN TELEMETRY DATA:
-        - Fan Speed: {speed_rpm:.0f} RPM
-        - Inlet Guide Vane (IGV / Damper): {damper_pct:.0f}%
-        - Flue Gas Temperature: {flue_gas_temp:.0f} °C
-        - Volumetric Airflow: {flow_tph:,.1f} TPH
-        - Furnace Draft Suction: {draft_mmwc:.1f} mmWC
-        - HV Motor Active Power: {power_kw:.1f} kW
-        - HV Motor Line Current: {current_amps:.1f} A (6.6 kV rating)
-        - Bearing Vibration: {vibration_mm_sec:.2f} mm/sec
-        - Blade Aerodynamic Health: {blade_health:.0f}%
-        - Bearing Mechanical Health: {bearing_health:.0f}%
-        - Remaining Useful Life (RUL): {rul_days} Days
-        - Projected Maintenance Date: {next_maint_date.strftime('%B %d, %Y')}
-        """
-        
-        config = types.GenerateContentConfig(
-            system_instruction=system_instruction,
-            temperature=0.3,
-        )
-
-        # Retrieve all active generation models dynamically for your API Key
-        available_models = []
+        # Test 1: Generate content directly using the standard flash alias
         try:
-            for m in client.models.list():
-                methods = getattr(m, "supported_generation_methods", [])
-                if "generateContent" in methods:
-                    clean_name = m.name.replace("models/", "")
-                    available_models.append(clean_name)
-        except Exception as list_err:
-            pass
+            res = client.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=query
+            )
+            if res and res.text:
+                return res.text
+        except Exception as e1:
+            err_flash = str(e1)
 
-        # Priority list if discovery works
-        for model_id in available_models:
-            try:
-                res = client.models.generate_content(
-                    model=model_id,
-                    contents=query,
-                    config=config
-                )
-                if res and res.text:
-                    return res.text
-            except Exception:
-                continue
-
-        # Direct fallback attempt if model discovery list is empty
-        for fallback_id in ["gemini-3.8-flash", "gemini-3.5-flash", "gemini-2.5-flash"]:
-            try:
-                res = client.models.generate_content(
-                    model=fallback_id,
-                    contents=query,
-                    config=config
-                )
-                if res and res.text:
-                    return res.text
-            except Exception:
-                continue
-
-        return "🚨 **Model Error**: Unable to establish connection to an active model on your key. Please generate a new key in Google AI Studio."
+        # Test 2: Query ModelService to see available models for this key
+        try:
+            models_list = [m.name for m in client.models.list()]
+            available_str = ", ".join(models_list[:5]) if models_list else "None found"
+            return f"🚨 **Model Call Failed**.\n\n**Flash Error:** `{err_flash}`\n\n**Models returned for your Key:** `{available_str}`"
+        except Exception as e2:
+            return f"🚨 **API Key Permission Error**: `{str(e2)}`"
 
     except Exception as e:
-        return f"🚨 **Error contacting Gemini backend:** {str(e)}"
+        return f"🚨 **Client Initialization Error:** {str(e)}"
 
 # --- Custom Metric Card Generator ---
 def custom_metric_card(icon_svg, icon_bg, label, value, unit, subtext):
