@@ -20,10 +20,7 @@ st.set_page_config(
 # --- Custom CSS: Fixed Spacing & Corporate Styling ---
 st.markdown("""
     <style>
-        /* Hide default Streamlit header bar space */
         header[data-testid="stHeader"] { height: 0px !important; background: transparent !important; }
-
-        /* Soft ice-blue background with proper top margin */
         .stApp { background-color: #e6eff8 !important; }
         .block-container { 
             padding-top: 2.2rem !important; 
@@ -31,19 +28,15 @@ st.markdown("""
             padding-left: 1.5rem !important; 
             padding-right: 1.5rem !important; 
         }
-        
-        /* Force Header & Title Text Visibility */
         h1, h2, h3, .stApp h1, .stApp h2, .stApp h3 { 
             color: #0b2545 !important; 
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif !important;
         }
-        
         .stMarkdown p, .stMarkdown span { 
             margin-bottom: 0.2rem !important; 
             font-size: 0.85rem !important; 
             color: #1e293b !important; 
         }
-        
         .stAlert { padding: 4px 8px !important; margin-bottom: 0px !important; font-size: 0.8rem !important; }
         hr { margin: 8px 0px !important; border-color: #cbd5e1 !important; }
         div[data-testid="stHorizontalBlock"] { align-items: stretch !important; }
@@ -126,69 +119,78 @@ next_maint_date = datetime.now() + timedelta(days=rul_days)
 new_row = pd.DataFrame([{"Draft_mmWC": draft_mmwc, "Power_kW": power_kw, "Vibration_mms": vibration_mm_sec}])
 st.session_state.history = pd.concat([st.session_state.history, new_row], ignore_index=True).tail(35)
 
-# --- Gemini Synchronous Backend ---
+# --- Dynamic Model Discovery Gemini Backend ---
 def ask_gemini_backend(query):
     api_key = st.secrets.get("GEMINI_API_KEY", None)
     
     if not api_key:
         return "⚠️ **API Key Missing**: Please set `GEMINI_API_KEY` in Streamlit secrets to enable Gemini AI."
 
-    client = genai.Client(api_key=api_key)
-    
-    system_instruction = f"""
-    You are an expert Thermal Power Plant Mechanical Engineer and Digital Twin AI Specialist.
-    Answer user questions clearly and concisely using real power plant fan physics and maintenance protocols.
-    
-    EXACT ID FAN DESIGN & OPERATIONAL SPECIFICATIONS:
-    - Speed Range: 200 to 700 RPM (Full load operating point: ~450 RPM)
-    - Airflow Range: 500 to 2,100 TPH (Full load operating point: ~1,850 TPH)
-    - Furnace Draft Control Point: Stays tightly around -5 mmWC across low and high loads.
-    - Motor Rating: 6.6 kV Line Voltage. Full load current draw is ~370 A.
-    - Vibration Thresholds: Normal full load operation is ~1.0 mm/sec. Alarm limit: > 4.5 mm/sec. EMERGENCY TRIP LIMIT: 19.0 mm/sec.
-    
-    LIVE ID FAN TELEMETRY DATA:
-    - Fan Speed: {speed_rpm:.0f} RPM
-    - Inlet Guide Vane (IGV / Damper): {damper_pct:.0f}%
-    - Flue Gas Temperature: {flue_gas_temp:.0f} °C
-    - Volumetric Airflow: {flow_tph:,.1f} TPH
-    - Furnace Draft Suction: {draft_mmwc:.1f} mmWC
-    - HV Motor Active Power: {power_kw:.1f} kW
-    - HV Motor Line Current: {current_amps:.1f} A (6.6 kV rating)
-    - Bearing Vibration: {vibration_mm_sec:.2f} mm/sec
-    - Blade Aerodynamic Health: {blade_health:.0f}%
-    - Bearing Mechanical Health: {bearing_health:.0f}%
-    - Remaining Useful Life (RUL): {rul_days} Days
-    - Projected Maintenance Date: {next_maint_date.strftime('%B %d, %Y')}
-    """
-    
-    config = types.GenerateContentConfig(
-        system_instruction=system_instruction,
-        temperature=0.3,
-    )
-
-    # Primary call to fast, low-latency Flash endpoint
     try:
-        res = client.models.generate_content(
-            model="gemini-2.5-flash",
-            contents=query,
-            config=config
+        client = genai.Client(api_key=api_key)
+        
+        system_instruction = f"""
+        You are an expert Thermal Power Plant Mechanical Engineer and Digital Twin AI Specialist.
+        Answer user questions clearly and concisely using real power plant fan physics and maintenance protocols.
+        
+        EXACT ID FAN DESIGN & OPERATIONAL SPECIFICATIONS:
+        - Speed Range: 200 to 700 RPM (Full load operating point: ~450 RPM)
+        - Airflow Range: 500 to 2,100 TPH (Full load operating point: ~1,850 TPH)
+        - Furnace Draft Control Point: Stays tightly around -5 mmWC across low and high loads.
+        - Motor Rating: 6.6 kV Line Voltage. Full load current draw is ~370 A.
+        - Vibration Thresholds: Normal full load operation is ~1.0 mm/sec. Alarm limit: > 4.5 mm/sec. EMERGENCY TRIP LIMIT: 19.0 mm/sec.
+        
+        LIVE ID FAN TELEMETRY DATA:
+        - Fan Speed: {speed_rpm:.0f} RPM
+        - Inlet Guide Vane (IGV / Damper): {damper_pct:.0f}%
+        - Flue Gas Temperature: {flue_gas_temp:.0f} °C
+        - Volumetric Airflow: {flow_tph:,.1f} TPH
+        - Furnace Draft Suction: {draft_mmwc:.1f} mmWC
+        - HV Motor Active Power: {power_kw:.1f} kW
+        - HV Motor Line Current: {current_amps:.1f} A (6.6 kV rating)
+        - Bearing Vibration: {vibration_mm_sec:.2f} mm/sec
+        - Blade Aerodynamic Health: {blade_health:.0f}%
+        - Bearing Mechanical Health: {bearing_health:.0f}%
+        - Remaining Useful Life (RUL): {rul_days} Days
+        - Projected Maintenance Date: {next_maint_date.strftime('%B %d, %Y')}
+        """
+        
+        config = types.GenerateContentConfig(
+            system_instruction=system_instruction,
+            temperature=0.3,
         )
-        if res and res.text:
-            return res.text
-    except Exception:
-        # Fallback to standard 1.5 flash endpoint if 2.5 is busy
-        try:
-            res = client.models.generate_content(
-                model="gemini-1.5-flash",
-                contents=query,
-                config=config
-            )
-            if res and res.text:
-                return res.text
-        except Exception as e:
-            return f"🚨 **Error contacting Gemini backend:** {str(e)}"
 
-    return "🚨 **Model Error**: Unable to reach Gemini backend. Please try sending your query again."
+        # Strategy 1: Try current standard production endpoints
+        for m_id in ["gemini-2.5-flash", "gemini-2.5-pro"]:
+            try:
+                res = client.models.generate_content(model=m_id, contents=query, config=config)
+                if res and res.text:
+                    return res.text
+            except Exception:
+                continue
+
+        # Strategy 2: Dynamic API Discovery - Query your key directly for active models
+        try:
+            available_models = [
+                m.name.replace("models/", "") 
+                for m in client.models.list() 
+                if "generateContent" in getattr(m, "supported_generation_methods", [])
+            ]
+            for active_m in available_models:
+                try:
+                    res = client.models.generate_content(model=active_m, contents=query, config=config)
+                    if res and res.text:
+                        return res.text
+                except Exception:
+                    continue
+        except Exception:
+            pass
+
+        return "🚨 **Model Error**: Unable to contact active Gemini endpoint. Please verify your API key in Google AI Studio."
+
+    except Exception as e:
+        return f"🚨 **Error contacting Gemini backend:** {str(e)}"
+
 # --- Custom Metric Card Generator ---
 def custom_metric_card(icon_svg, icon_bg, label, value, unit, subtext):
     return f"""
