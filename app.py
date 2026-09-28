@@ -20,10 +20,7 @@ st.set_page_config(
 # --- Custom CSS: Fixed Spacing & Corporate Styling ---
 st.markdown("""
     <style>
-        /* Hide default Streamlit header bar space */
         header[data-testid="stHeader"] { height: 0px !important; background: transparent !important; }
-
-        /* Soft ice-blue background with proper top margin */
         .stApp { background-color: #e6eff8 !important; }
         .block-container { 
             padding-top: 2.2rem !important; 
@@ -31,19 +28,15 @@ st.markdown("""
             padding-left: 1.5rem !important; 
             padding-right: 1.5rem !important; 
         }
-        
-        /* Force Header & Title Text Visibility */
         h1, h2, h3, .stApp h1, .stApp h2, .stApp h3 { 
             color: #0b2545 !important; 
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif !important;
         }
-        
         .stMarkdown p, .stMarkdown span { 
             margin-bottom: 0.2rem !important; 
             font-size: 0.85rem !important; 
             color: #1e293b !important; 
         }
-        
         .stAlert { padding: 4px 8px !important; margin-bottom: 0px !important; font-size: 0.8rem !important; }
         hr { margin: 8px 0px !important; border-color: #cbd5e1 !important; }
         div[data-testid="stHorizontalBlock"] { align-items: stretch !important; }
@@ -131,7 +124,7 @@ st.session_state.history = pd.concat([st.session_state.history, new_row], ignore
 def get_gemini_client(api_key):
     return genai.Client(api_key=api_key)
 
-# --- Streaming Gemini AI Backend ---
+# --- Streaming Gemini AI Backend with Automatic Fallback ---
 def stream_gemini_response(query):
     api_key = st.secrets.get("GEMINI_API_KEY", None)
     
@@ -173,15 +166,24 @@ def stream_gemini_response(query):
             temperature=0.2,
         )
 
-        response_stream = client.models.generate_content_stream(
-            model="gemini-3.8-flash",
-            contents=query,
-            config=config
-        )
-        
-        for chunk in response_stream:
-            if chunk.text:
-                yield chunk.text
+        candidate_models = ["gemini-3.8-flash", "gemini-3.5-flash", "gemini-flash-latest"]
+
+        for model_id in candidate_models:
+            try:
+                response_stream = client.models.generate_content_stream(
+                    model=model_id,
+                    contents=query,
+                    config=config
+                )
+                
+                for chunk in response_stream:
+                    if chunk.text:
+                        yield chunk.text
+                return
+            except Exception:
+                continue
+
+        yield "🚨 **Server Busy**: All Gemini models are currently experiencing high demand. Please try again in a few moments."
 
     except Exception as e:
         yield f"🚨 **Error contacting Gemini backend:** {str(e)}"
