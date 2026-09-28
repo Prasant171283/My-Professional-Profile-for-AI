@@ -124,7 +124,27 @@ st.session_state.history = pd.concat([st.session_state.history, new_row], ignore
 def get_gemini_client(api_key):
     return genai.Client(api_key=api_key)
 
-# --- Streaming Gemini AI Backend with Retries & Fallback ---
+# --- Cache Working Model Name to avoid spamming endpoints ---
+@st.cache_resource
+def discover_active_model(api_key):
+    client = genai.Client(api_key=api_key)
+    for model_id in ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-1.5-flash"]:
+        try:
+            res = client.models.generate_content(model=model_id, contents="ping")
+            if res and res.text:
+                return model_id
+        except Exception:
+            continue
+    try:
+        for m in client.models.list():
+            m_name = getattr(m, 'name', '').replace("models/", "")
+            if "flash" in m_name or "gemini" in m_name:
+                return m_name
+    except Exception:
+        pass
+    return "gemini-2.5-flash"
+
+# --- Streaming Gemini AI Backend ---
 def stream_gemini_response(query):
     api_key = st.secrets.get("GEMINI_API_KEY", None)
     
@@ -134,6 +154,7 @@ def stream_gemini_response(query):
 
     try:
         client = get_gemini_client(api_key)
+        active_model = discover_active_model(api_key)
         
         system_instruction = f"""
         You are an expert Thermal Power Plant Mechanical Engineer and Digital Twin AI Specialist.
@@ -166,33 +187,15 @@ def stream_gemini_response(query):
             temperature=0.2,
         )
 
-        candidate_models = [
-            "gemini-2.5-flash",
-            "gemini-2.5-pro",
-            "gemini-1.5-flash"
-        ]
-
-        for model_id in candidate_models:
-            for attempt in range(2):
-                try:
-                    response_stream = client.models.generate_content_stream(
-                        model=model_id,
-                        contents=query,
-                        config=config
-                    )
-                    
-                    for chunk in response_stream:
-                        if chunk.text:
-                            yield chunk.text
-                    return
-                except Exception as e:
-                    if "503" in str(e) or "UNAVAILABLE" in str(e):
-                        time.sleep(0.5)
-                        continue
-                    else:
-                        break
-
-        yield "🚨 **Server Busy**: Google API is experiencing temporary high demand across all free endpoints. Please try sending your prompt again in a few seconds."
+        response_stream = client.models.generate_content_stream(
+            model=active_model,
+            contents=query,
+            config=config
+        )
+        
+        for chunk in response_stream:
+            if chunk.text:
+                yield chunk.text
 
     except Exception as e:
         yield f"🚨 **Error contacting Gemini backend:** {str(e)}"
@@ -388,6 +391,8 @@ with tab_chat:
 
 st.sidebar.markdown("---")
 auto_stream = st.sidebar.checkbox("Auto-Stream Live Telemetry", value=True)
+
+# Prevent auto-rerun streaming loop from executing when user is on the chat tab or typing
 if auto_stream:
     time.sleep(0.4)
     st.rerun()
