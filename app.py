@@ -119,7 +119,7 @@ next_maint_date = datetime.now() + timedelta(days=rul_days)
 new_row = pd.DataFrame([{"Draft_mmWC": draft_mmwc, "Power_kW": power_kw, "Vibration_mms": vibration_mm_sec}])
 st.session_state.history = pd.concat([st.session_state.history, new_row], ignore_index=True).tail(35)
 
-# --- Presentation-Safe Backend with gemini-3.8-flash ---
+# --- Direct Dynamic Gemini Backend ---
 def ask_gemini_backend(query):
     api_key = st.secrets.get("GEMINI_API_KEY", None)
     if not api_key:
@@ -129,9 +129,11 @@ def ask_gemini_backend(query):
     if not api_key:
         return "⚠️ **API Key Missing**: Please set `GEMINI_API_KEY` in Streamlit secrets."
 
+    client = genai.Client(api_key=api_key)
+    
     system_instruction = f"""
     You are an expert Thermal Power Plant Mechanical Engineer and Digital Twin AI Specialist.
-    Answer user questions clearly and concisely using real power plant fan physics.
+    Answer the user's specific question directly based on real power plant fan physics.
     
     LIVE ID FAN TELEMETRY DATA:
     - Fan Speed: {speed_rpm:.0f} RPM
@@ -154,26 +156,17 @@ def ask_gemini_backend(query):
     )
 
     try:
-        client = genai.Client(api_key=api_key)
         res = client.models.generate_content(
-            model="gemini-3.8-flash",
+            model="gemini-2.5-flash",
             contents=query,
             config=config
         )
         if res and res.text:
             return res.text
+    except Exception as e:
+        return f"🚨 **API Call Error:** `{str(e)}`"
 
-    except Exception as err:
-        # Emergency Presentation Fallback: Delivers live data analysis if API is unavailable
-        return (
-            f"⚙️ **[ID Fan Digital Twin AI Analysis]**\n\n"
-            f"**Query Evaluated:** *\"{query}\"*\n\n"
-            f"- **Telemetry Context:** Operating at **{speed_rpm} RPM** with **{damper_pct}% IGV opening**, "
-            f"delivering **{flow_tph:,.1f} TPH** airflow and keeping draft at **{draft_mmwc:.1f} mmWC**.\n"
-            f"- **Mechanical Condition:** Vibration is measured at **{vibration_mm_sec:.2f} mm/s** (Trip threshold: 19.0 mm/s). "
-            f"Bearing condition is rated at **{bearing_health}%** and blade aerodynamic health at **{blade_health}%**.\n"
-            f"- **Prescriptive Outcome:** Remaining Useful Life is estimated at **{rul_days} Days**, targeting planned maintenance on **{next_maint_date.strftime('%B %d, %Y')}**."
-        )
+    return "🚨 **Error:** No text returned from Gemini."
 
 # --- Custom Metric Card Generator ---
 def custom_metric_card(icon_svg, icon_bg, label, value, unit, subtext):
