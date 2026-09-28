@@ -124,30 +124,6 @@ st.session_state.history = pd.concat([st.session_state.history, new_row], ignore
 def get_gemini_client(api_key):
     return genai.Client(api_key=api_key)
 
-# --- Cache Working Model Name ---
-@st.cache_resource
-def discover_active_model(api_key):
-    client = genai.Client(api_key=api_key)
-    candidate_list = ["gemini-3.8-flash", "gemini-3.5-flash", "gemini-flash-latest"]
-    
-    for model_id in candidate_list:
-        try:
-            res = client.models.generate_content(model=model_id, contents="ping")
-            if res and res.text:
-                return model_id
-        except Exception:
-            continue
-            
-    try:
-        for m in client.models.list():
-            m_name = getattr(m, 'name', '').replace("models/", "")
-            if "flash" in m_name or "gemini" in m_name:
-                return m_name
-    except Exception:
-        pass
-        
-    return "gemini-3.8-flash"
-
 # --- Streaming Gemini AI Backend ---
 def stream_gemini_response(query):
     api_key = st.secrets.get("GEMINI_API_KEY", None)
@@ -158,7 +134,6 @@ def stream_gemini_response(query):
 
     try:
         client = get_gemini_client(api_key)
-        active_model = discover_active_model(api_key)
         
         system_instruction = f"""
         You are an expert Thermal Power Plant Mechanical Engineer and Digital Twin AI Specialist.
@@ -192,7 +167,7 @@ def stream_gemini_response(query):
         )
 
         response_stream = client.models.generate_content_stream(
-            model=active_model,
+            model="gemini-3.8-flash",
             contents=query,
             config=config
         )
