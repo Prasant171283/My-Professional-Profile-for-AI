@@ -166,39 +166,29 @@ def ask_gemini_backend(query):
         temperature=0.3,
     )
 
-    model_candidates = ["gemini-3.8-flash", "gemini-3.5-flash", "gemini-flash-latest"]
-
-    for m_name in model_candidates:
+    # Primary call to fast, low-latency Flash endpoint
+    try:
+        res = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=query,
+            config=config
+        )
+        if res and res.text:
+            return res.text
+    except Exception:
+        # Fallback to standard 1.5 flash endpoint if 2.5 is busy
         try:
             res = client.models.generate_content(
-                model=m_name,
+                model="gemini-1.5-flash",
                 contents=query,
                 config=config
             )
             if res and res.text:
                 return res.text
-        except Exception:
-            continue
+        except Exception as e:
+            return f"🚨 **Error contacting Gemini backend:** {str(e)}"
 
-    try:
-        available_models = [m.name for m in client.models.list() if "generateContent" in getattr(m, "supported_generation_methods", [])]
-        for active_m in available_models:
-            clean_name = active_m.replace("models/", "")
-            try:
-                res = client.models.generate_content(
-                    model=clean_name,
-                    contents=query,
-                    config=config
-                )
-                if res and res.text:
-                    return res.text
-            except Exception:
-                continue
-    except Exception as e:
-        return f"🚨 **Error querying available Gemini models:** {str(e)}"
-
-    return "🚨 **Model Error**: Unable to reach a compatible Gemini model. Please try again in a few moments."
-
+    return "🚨 **Model Error**: Unable to reach Gemini backend. Please try sending your query again."
 # --- Custom Metric Card Generator ---
 def custom_metric_card(icon_svg, icon_bg, label, value, unit, subtext):
     return f"""
