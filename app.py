@@ -134,75 +134,57 @@ st.session_state.history = pd.concat([st.session_state.history, new_row], ignore
 
 # --- Gemini API Backend Function ---
 def ask_gemini_backend(query):
+    # Retrieve key directly from secrets on each call
     api_key = st.secrets.get("GEMINI_API_KEY", None)
-    
     if not api_key:
-        return "⚠️ **API Key Missing**: Please set `GEMINI_API_KEY` in Streamlit secrets to enable Gemini AI."
+        api_keys = st.secrets.get("GEMINI_API_KEYS", [])
+        api_key = api_keys[0] if api_keys else None
 
-    client = genai.Client(api_key=api_key)
-    
-    system_instruction = f"""
-    You are an expert Thermal Power Plant Mechanical Engineer and Digital Twin AI Specialist.
-    Answer user questions clearly and concisely using real power plant fan physics and maintenance protocols.
-    
-    EXACT ID FAN DESIGN & OPERATIONAL SPECIFICATIONS:
-    - Speed Range: 200 to 700 RPM (Full load operating point: ~450 RPM)
-    - Airflow Range: 500 to 2,100 TPH (Full load operating point: ~1,850 TPH)
-    - Furnace Draft Control Point: Stays tightly around -5 mmWC across low and high loads.
-    - Motor Rating: 6.6 kV Line Voltage. Full load current draw is ~370 A.
-    - Vibration Thresholds: Normal full load operation is ~1.0 mm/sec. Alarm limit: > 4.5 mm/sec. EMERGENCY TRIP LIMIT: 19.0 mm/sec.
-    
-    LIVE ID FAN TELEMETRY DATA:
-    - Fan Speed: {speed_rpm:.0f} RPM
-    - Inlet Guide Vane (IGV / Damper): {damper_pct:.0f}%
-    - Flue Gas Temperature: {flue_gas_temp:.0f} °C
-    - Volumetric Airflow: {flow_tph:,.1f} TPH
-    - Furnace Draft Suction: {draft_mmwc:.1f} mmWC
-    - HV Motor Active Power: {power_kw:.1f} kW
-    - HV Motor Line Current: {current_amps:.1f} A (6.6 kV rating)
-    - Bearing Vibration: {vibration_mm_sec:.2f} mm/sec
-    - Blade Aerodynamic Health: {blade_health:.0f}%
-    - Bearing Mechanical Health: {bearing_health:.0f}%
-    - Remaining Useful Life (RUL): {rul_days} Days
-    - Projected Maintenance Date: {next_maint_date.strftime('%B %d, %Y')}
-    """
-    
-    config = types.GenerateContentConfig(
-        system_instruction=system_instruction,
-        temperature=0.3,
-    )
-
-    model_candidates = ["gemini-3.7-flash", "gemini-3.5-flash", "gemini-flash-latest"]
-
-    for m_name in model_candidates:
-        try:
-            res = client.models.generate_content(
-                model=m_name,
-                contents=query,
-                config=config
-            )
-            return res.text
-        except Exception:
-            continue
+    if not api_key:
+        return "⚠️ **API Key Missing**: Please set `GEMINI_API_KEY` in Streamlit secrets."
 
     try:
-        available_models = [m.name for m in client.models.list() if "generateContent" in getattr(m, "supported_generation_methods", [])]
-        for active_m in available_models:
-            clean_name = active_m.replace("models/", "")
-            try:
-                res = client.models.generate_content(
-                    model=clean_name,
-                    contents=query,
-                    config=config
-                )
-                return res.text
-            except Exception:
-                continue
+        # Pass key explicitly to client on call time
+        client = genai.Client(api_key=api_key)
+        
+        system_instruction = f"""
+        You are an expert Thermal Power Plant Mechanical Engineer and Digital Twin AI Specialist.
+        Answer user questions clearly and concisely using real power plant fan physics and maintenance protocols.
+        
+        LIVE ID FAN TELEMETRY DATA:
+        - Fan Speed: {speed_rpm:.0f} RPM
+        - Inlet Guide Vane (IGV / Damper): {damper_pct:.0f}%
+        - Flue Gas Temperature: {flue_gas_temp:.0f} °C
+        - Volumetric Airflow: {flow_tph:,.1f} TPH
+        - Furnace Draft Suction: {draft_mmwc:.1f} mmWC
+        - HV Motor Active Power: {power_kw:.1f} kW
+        - HV Motor Line Current: {current_amps:.1f} A (6.6 kV rating)
+        - Bearing Vibration: {vibration_mm_sec:.2f} mm/sec
+        - Blade Aerodynamic Health: {blade_health:.0f}%
+        - Bearing Mechanical Health: {bearing_health:.0f}%
+        - Remaining Useful Life (RUL): {rul_days} Days
+        - Projected Maintenance Date: {next_maint_date.strftime('%B %d, %Y')}
+        """
+        
+        config = types.GenerateContentConfig(
+            system_instruction=system_instruction,
+            temperature=0.3,
+        )
+
+        # Single direct call to active endpoint
+        res = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=query,
+            config=config
+        )
+        if res and res.text:
+            return res.text
+
     except Exception as e:
-        return f"🚨 **Error querying available Gemini models:** {str(e)}"
+        # Display raw exception message rather than generic failure string
+        return f"🚨 **API Error Log:** `{str(e)}`"
 
-    return "🚨 **Model Error**: Unable to reach a compatible Gemini model on your API key. Please check your Google AI Studio quota."
-
+    return "🚨 **Response Error**: Backend completed without returning text."
 # --- Custom Metric Card Generator ---
 def custom_metric_card(icon_svg, icon_bg, label, value, unit, subtext):
     return f"""
