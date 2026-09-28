@@ -157,7 +157,7 @@ def ask_gemini_backend(query):
 
     try:
         res = client.models.generate_content(
-            model="gemini-2.5-flash",
+            model="gemini-3.8-flash",
             contents=query,
             config=config
         )
@@ -167,7 +167,6 @@ def ask_gemini_backend(query):
         return f"🚨 **API Call Error:** `{str(e)}`"
 
     return "🚨 **Error:** No text returned from Gemini."
-
 # --- Custom Metric Card Generator ---
 def custom_metric_card(icon_svg, icon_bg, label, value, unit, subtext):
     return f"""
