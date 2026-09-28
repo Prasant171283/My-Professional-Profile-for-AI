@@ -400,4 +400,4 @@ st.sidebar.markdown("---")
 auto_stream = st.sidebar.checkbox("Auto-Stream Live Telemetry", value=True)
 if auto_stream:
     time.sleep(0.4)
-    st.return()
+    st.rerun()
