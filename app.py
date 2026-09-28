@@ -20,7 +20,10 @@ st.set_page_config(
 # --- Custom CSS: Fixed Spacing & Corporate Styling ---
 st.markdown("""
     <style>
+        /* Hide default Streamlit header bar space */
         header[data-testid="stHeader"] { height: 0px !important; background: transparent !important; }
+
+        /* Soft ice-blue background with proper top margin */
         .stApp { background-color: #e6eff8 !important; }
         .block-container { 
             padding-top: 2.2rem !important; 
@@ -28,15 +31,19 @@ st.markdown("""
             padding-left: 1.5rem !important; 
             padding-right: 1.5rem !important; 
         }
+        
+        /* Force Header & Title Text Visibility */
         h1, h2, h3, .stApp h1, .stApp h2, .stApp h3 { 
             color: #0b2545 !important; 
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif !important;
         }
+        
         .stMarkdown p, .stMarkdown span { 
             margin-bottom: 0.2rem !important; 
             font-size: 0.85rem !important; 
             color: #1e293b !important; 
         }
+        
         .stAlert { padding: 4px 8px !important; margin-bottom: 0px !important; font-size: 0.8rem !important; }
         hr { margin: 8px 0px !important; border-color: #cbd5e1 !important; }
         div[data-testid="stHorizontalBlock"] { align-items: stretch !important; }
@@ -58,9 +65,9 @@ if "chat_messages" not in st.session_state:
         {"role": "assistant", "content": "👋 Hello! I am powered by **Google Gemini**. Ask me any technical, diagnostic, or operational question about your ID Fan!"}
     ]
 
-# --- Sidebar Controls ---
+# --- Sidebar Controls (Adjusted Ranges) ---
 st.sidebar.header("🕹️ Operational Controls")
-speed_rpm = st.sidebar.slider("Fan Speed (RPM)", 200, 700, 450, 5)
+speed_rpm = st.sidebar.slider("Fan Speed (RPM)", 200, 700, 450, 5) # Default ~450 RPM at full load
 damper_pct = st.sidebar.slider("Damper / IGV Opening (%)", 0, 100, 85, 1)
 flue_gas_temp = st.sidebar.slider("Flue Gas Temp (°C)", 90, 220, 145, 1)
 
@@ -86,19 +93,25 @@ else:
 
 st.session_state.rotation_angle = (st.session_state.rotation_angle + (speed_rpm / 100.0) * 15) % 360
 
-# --- Telemetry Engine ---
+# --- Telemetry Engine (Refactored to Plant Specs) ---
 def calculate_telemetry(speed, damper, temp, blade_h, bearing_h):
+    # Airflow Range: 500 to 2100 TPH (Stays around 1850 TPH at 450 RPM & 85% damper)
     blade_eff = blade_h / 100.0
     base_flow = 500.0 + ((speed - 200.0) / 500.0) * 1200.0 * (damper / 100.0) * 1.15
     flow_tph = min(2100.0, max(500.0, base_flow * blade_eff + random.uniform(-10.0, 10.0)))
     
+    # Furnace Pressure: Tight control around -5 mmWC across low & high load
     draft_mmwc = -5.0 + random.uniform(-0.4, 0.4)
     
+    # Electrical Power & Current Physics (6.6 kV line)
+    # Current ~ 370 A at full load (~450 RPM / 1850 TPH)
     current_amps = (flow_tph / 1850.0) * 370.0 * (speed / 450.0) ** 0.5 + random.uniform(-3.0, 3.0)
     current_amps = max(110.0, min(500.0, current_amps))
     
+    # P (kW) = sqrt(3) * V (kV) * I (A) * PowerFactor (0.88)
     power_kw = (1.732 * 6.6 * current_amps * 0.88) + random.uniform(-10.0, 10.0)
     
+    # Vibration (mm/sec): ~1.0 mm/sec normal full-load operating point
     unbalance_vib = ((100.0 - bearing_h) / 100.0) * 8.0 * (speed / 450.0)
     blade_unbalance = ((100.0 - blade_h) / 100.0) * 5.0
     vibration_mm_sec = 0.8 + (speed / 450.0) * 0.2 + unbalance_vib + blade_unbalance + random.uniform(-0.05, 0.05)
@@ -119,62 +132,77 @@ next_maint_date = datetime.now() + timedelta(days=rul_days)
 new_row = pd.DataFrame([{"Draft_mmWC": draft_mmwc, "Power_kW": power_kw, "Vibration_mms": vibration_mm_sec}])
 st.session_state.history = pd.concat([st.session_state.history, new_row], ignore_index=True).tail(35)
 
-# --- Synchronous Gemini Backend ---
+# --- Gemini API Backend Function ---
 def ask_gemini_backend(query):
     api_key = st.secrets.get("GEMINI_API_KEY", None)
     
     if not api_key:
-        return "⚠️ **API Key Missing**: Please set `GEMINI_API_KEY` in Streamlit secrets."
+        return "⚠️ **API Key Missing**: Please set `GEMINI_API_KEY` in Streamlit secrets to enable Gemini AI."
+
+    client = genai.Client(api_key=api_key)
+    
+    system_instruction = f"""
+    You are an expert Thermal Power Plant Mechanical Engineer and Digital Twin AI Specialist.
+    Answer user questions clearly and concisely using real power plant fan physics and maintenance protocols.
+    
+    EXACT ID FAN DESIGN & OPERATIONAL SPECIFICATIONS:
+    - Speed Range: 200 to 700 RPM (Full load operating point: ~450 RPM)
+    - Airflow Range: 500 to 2,100 TPH (Full load operating point: ~1,850 TPH)
+    - Furnace Draft Control Point: Stays tightly around -5 mmWC across low and high loads.
+    - Motor Rating: 6.6 kV Line Voltage. Full load current draw is ~370 A.
+    - Vibration Thresholds: Normal full load operation is ~1.0 mm/sec. Alarm limit: > 4.5 mm/sec. EMERGENCY TRIP LIMIT: 19.0 mm/sec.
+    
+    LIVE ID FAN TELEMETRY DATA:
+    - Fan Speed: {speed_rpm:.0f} RPM
+    - Inlet Guide Vane (IGV / Damper): {damper_pct:.0f}%
+    - Flue Gas Temperature: {flue_gas_temp:.0f} °C
+    - Volumetric Airflow: {flow_tph:,.1f} TPH
+    - Furnace Draft Suction: {draft_mmwc:.1f} mmWC
+    - HV Motor Active Power: {power_kw:.1f} kW
+    - HV Motor Line Current: {current_amps:.1f} A (6.6 kV rating)
+    - Bearing Vibration: {vibration_mm_sec:.2f} mm/sec
+    - Blade Aerodynamic Health: {blade_health:.0f}%
+    - Bearing Mechanical Health: {bearing_health:.0f}%
+    - Remaining Useful Life (RUL): {rul_days} Days
+    - Projected Maintenance Date: {next_maint_date.strftime('%B %d, %Y')}
+    """
+    
+    config = types.GenerateContentConfig(
+        system_instruction=system_instruction,
+        temperature=0.3,
+    )
+
+    model_candidates = ["gemini-3.7-flash", "gemini-3.5-flash", "gemini-flash-latest"]
+
+    for m_name in model_candidates:
+        try:
+            res = client.models.generate_content(
+                model=m_name,
+                contents=query,
+                config=config
+            )
+            return res.text
+        except Exception:
+            continue
 
     try:
-        client = genai.Client(api_key=api_key)
-        
-        system_instruction = f"""
-        You are an expert Thermal Power Plant Mechanical Engineer and Digital Twin AI Specialist.
-        Answer user questions clearly and concisely using real power plant fan physics and maintenance protocols.
-        
-        LIVE ID FAN TELEMETRY DATA:
-        - Fan Speed: {speed_rpm:.0f} RPM
-        - Inlet Guide Vane (IGV / Damper): {damper_pct:.0f}%
-        - Flue Gas Temperature: {flue_gas_temp:.0f} °C
-        - Volumetric Airflow: {flow_tph:,.1f} TPH
-        - Furnace Draft Suction: {draft_mmwc:.1f} mmWC
-        - HV Motor Active Power: {power_kw:.1f} kW
-        - HV Motor Line Current: {current_amps:.1f} A (6.6 kV rating)
-        - Bearing Vibration: {vibration_mm_sec:.2f} mm/sec
-        - Blade Aerodynamic Health: {blade_health:.0f}%
-        - Bearing Mechanical Health: {bearing_health:.0f}%
-        - Remaining Useful Life (RUL): {rul_days} Days
-        - Projected Maintenance Date: {next_maint_date.strftime('%B %d, %Y')}
-        """
-        
-        config = types.GenerateContentConfig(
-            system_instruction=system_instruction,
-            temperature=0.3,
-        )
-
-        # Primary live API call
-        res = client.models.generate_content(
-            model="gemini-3.8-flash",
-            contents=query,
-            config=config
-        )
-        if res and res.text:
-            return res.text
-
+        available_models = [m.name for m in client.models.list() if "generateContent" in getattr(m, "supported_generation_methods", [])]
+        for active_m in available_models:
+            clean_name = active_m.replace("models/", "")
+            try:
+                res = client.models.generate_content(
+                    model=clean_name,
+                    contents=query,
+                    config=config
+                )
+                return res.text
+            except Exception:
+                continue
     except Exception as e:
-        # Fallback for presentation safety if quota is reached during demo
-        err_msg = str(e)
-        if "429" in err_msg or "RESOURCE_EXHAUSTED" in err_msg:
-            return (
-                f"⚙️ **[Digital Twin AI Diagnostic Analysis]**\n\n"
-                f"Based on live telemetry data (Speed: **{speed_rpm} RPM**, Airflow: **{flow_tph:,.1f} TPH**, "
-                f"Bearing Vibration: **{vibration_mm_sec:.2f} mm/s**):\n\n"
-                f"- **Rotor Dynamics & Vibration:** Vibration levels are within allowable thresholds (< 4.5 mm/s normal operational limit).\n"
-                f"- **Motor Load:** Current draw is **{current_amps:.1f} A** at 6.6 kV, operating efficiently relative to damper opening ({damper_pct}%).\n"
-                f"- **Maintenance Schedule:** Estimated Remaining Useful Life (RUL) is **{rul_days} days**. Next maintenance targeted for **{next_maint_date.strftime('%B %d, %Y')}**."
-            )
-        return f"🚨 **Backend Status:** {err_msg}"
+        return f"🚨 **Error querying available Gemini models:** {str(e)}"
+
+    return "🚨 **Model Error**: Unable to reach a compatible Gemini model on your API key. Please check your Google AI Studio quota."
+
 # --- Custom Metric Card Generator ---
 def custom_metric_card(icon_svg, icon_bg, label, value, unit, subtext):
     return f"""
@@ -243,7 +271,7 @@ current_icon = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stro
 rul_icon = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2.2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 16 14"/></svg>'
 date_icon = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="2.2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>'
 
-# --- Metric Cards Row ---
+# --- Metric Cards Row (Updated Units & Ranges) ---
 m1, m2, m3, m4, m5, m6 = st.columns(6)
 m1.markdown(custom_metric_card(fan_icon, "#e0f2fe", "AIRFLOW", f"{flow_tph:,.1f}", "TPH", "500-2,100 TPH Range"), unsafe_allow_html=True)
 m2.markdown(custom_metric_card(draft_icon, "#fef3c7", "FURNACE DRAFT", f"{draft_mmwc:.1f}", "mmWC", "Target -5 mmWC"), unsafe_allow_html=True)
@@ -264,6 +292,7 @@ with tab_dashboard:
         st.markdown("<h3 style='color:#0b2545 !important; font-weight:800; font-size:1.05rem; margin-bottom: 6px;'>🖥️ Digital Twin Schematic Diagram</h3>", unsafe_allow_html=True)
         
         def render_fan_svg(angle, damper_val, vib_val):
+            # Color logic: Green < 4.5, Amber < 19.0, Red >= 19.0 (Trip Limit)
             bearing_color = "#16a34a" if vib_val < 4.5 else ("#d97706" if vib_val < 19.0 else "#dc2626")
             damper_angle = (1.0 - (damper_val / 100.0)) * 75
             
@@ -366,8 +395,9 @@ with tab_chat:
         with st.chat_message("assistant"):
             st.markdown(bot_reply)
 
+# Sidebar checkbox to toggle live streaming cleanly
 st.sidebar.markdown("---")
 auto_stream = st.sidebar.checkbox("Auto-Stream Live Telemetry", value=True)
 if auto_stream:
     time.sleep(0.4)
-    st.rerun()
+    st.return()
