@@ -20,7 +20,10 @@ st.set_page_config(
 # --- Custom CSS: Fixed Spacing & Corporate Styling ---
 st.markdown("""
     <style>
+        /* Hide default Streamlit header bar space */
         header[data-testid="stHeader"] { height: 0px !important; background: transparent !important; }
+
+        /* Soft ice-blue background with proper top margin */
         .stApp { background-color: #e6eff8 !important; }
         .block-container { 
             padding-top: 2.2rem !important; 
@@ -28,15 +31,19 @@ st.markdown("""
             padding-left: 1.5rem !important; 
             padding-right: 1.5rem !important; 
         }
+        
+        /* Force Header & Title Text Visibility */
         h1, h2, h3, .stApp h1, .stApp h2, .stApp h3 { 
             color: #0b2545 !important; 
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif !important;
         }
+        
         .stMarkdown p, .stMarkdown span { 
             margin-bottom: 0.2rem !important; 
             font-size: 0.85rem !important; 
             color: #1e293b !important; 
         }
+        
         .stAlert { padding: 4px 8px !important; margin-bottom: 0px !important; font-size: 0.8rem !important; }
         hr { margin: 8px 0px !important; border-color: #cbd5e1 !important; }
         div[data-testid="stHorizontalBlock"] { align-items: stretch !important; }
@@ -60,7 +67,7 @@ if "chat_messages" not in st.session_state:
 
 # --- Sidebar Controls ---
 st.sidebar.header("🕹️ Operational Controls")
-speed_rpm = st.sidebar.slider("Fan Speed (RPM)", 200, 700, 450, 5)  # 200-700 RPM Range (~450 at full load)
+speed_rpm = st.sidebar.slider("Fan Speed (RPM)", 200, 700, 450, 5)
 damper_pct = st.sidebar.slider("Damper / IGV Opening (%)", 0, 100, 85, 1)
 flue_gas_temp = st.sidebar.slider("Flue Gas Temp (°C)", 90, 220, 145, 1)
 
@@ -119,65 +126,78 @@ next_maint_date = datetime.now() + timedelta(days=rul_days)
 new_row = pd.DataFrame([{"Draft_mmWC": draft_mmwc, "Power_kW": power_kw, "Vibration_mms": vibration_mm_sec}])
 st.session_state.history = pd.concat([st.session_state.history, new_row], ignore_index=True).tail(35)
 
-# --- Cache Client Connection ---
-@st.cache_resource
-def get_gemini_client(api_key):
-    return genai.Client(api_key=api_key)
-
-# --- Streaming Gemini AI Backend ---
-def stream_gemini_response(query):
+# --- Gemini Synchronous Backend ---
+def ask_gemini_backend(query):
     api_key = st.secrets.get("GEMINI_API_KEY", None)
     
     if not api_key:
-        yield "⚠️ **API Key Missing**: Please set `GEMINI_API_KEY` in Streamlit secrets."
-        return
+        return "⚠️ **API Key Missing**: Please set `GEMINI_API_KEY` in Streamlit secrets to enable Gemini AI."
+
+    client = genai.Client(api_key=api_key)
+    
+    system_instruction = f"""
+    You are an expert Thermal Power Plant Mechanical Engineer and Digital Twin AI Specialist.
+    Answer user questions clearly and concisely using real power plant fan physics and maintenance protocols.
+    
+    EXACT ID FAN DESIGN & OPERATIONAL SPECIFICATIONS:
+    - Speed Range: 200 to 700 RPM (Full load operating point: ~450 RPM)
+    - Airflow Range: 500 to 2,100 TPH (Full load operating point: ~1,850 TPH)
+    - Furnace Draft Control Point: Stays tightly around -5 mmWC across low and high loads.
+    - Motor Rating: 6.6 kV Line Voltage. Full load current draw is ~370 A.
+    - Vibration Thresholds: Normal full load operation is ~1.0 mm/sec. Alarm limit: > 4.5 mm/sec. EMERGENCY TRIP LIMIT: 19.0 mm/sec.
+    
+    LIVE ID FAN TELEMETRY DATA:
+    - Fan Speed: {speed_rpm:.0f} RPM
+    - Inlet Guide Vane (IGV / Damper): {damper_pct:.0f}%
+    - Flue Gas Temperature: {flue_gas_temp:.0f} °C
+    - Volumetric Airflow: {flow_tph:,.1f} TPH
+    - Furnace Draft Suction: {draft_mmwc:.1f} mmWC
+    - HV Motor Active Power: {power_kw:.1f} kW
+    - HV Motor Line Current: {current_amps:.1f} A (6.6 kV rating)
+    - Bearing Vibration: {vibration_mm_sec:.2f} mm/sec
+    - Blade Aerodynamic Health: {blade_health:.0f}%
+    - Bearing Mechanical Health: {bearing_health:.0f}%
+    - Remaining Useful Life (RUL): {rul_days} Days
+    - Projected Maintenance Date: {next_maint_date.strftime('%B %d, %Y')}
+    """
+    
+    config = types.GenerateContentConfig(
+        system_instruction=system_instruction,
+        temperature=0.3,
+    )
+
+    model_candidates = ["gemini-3.8-flash", "gemini-3.5-flash", "gemini-flash-latest"]
+
+    for m_name in model_candidates:
+        try:
+            res = client.models.generate_content(
+                model=m_name,
+                contents=query,
+                config=config
+            )
+            if res and res.text:
+                return res.text
+        except Exception:
+            continue
 
     try:
-        client = get_gemini_client(api_key)
-        
-        system_instruction = f"""
-        You are an expert Thermal Power Plant Mechanical Engineer and Digital Twin AI Specialist.
-        Answer user questions clearly, concisely, and immediately using real power plant fan physics.
-        
-        EXACT ID FAN DESIGN & OPERATIONAL SPECIFICATIONS:
-        - Speed Range: 200 to 700 RPM (Full load operating point: ~450 RPM)
-        - Airflow Range: 500 to 2,100 TPH (Full load operating point: ~1,850 TPH)
-        - Furnace Draft Control Point: Stays tightly around -5 mmWC across low and high loads.
-        - Motor Rating: 6.6 kV Line Voltage. Full load current draw is ~370 A.
-        - Vibration Thresholds: Normal full load operation is ~1.0 mm/sec. Alarm limit: > 4.5 mm/sec. EMERGENCY TRIP LIMIT: 19.0 mm/sec.
-        
-        LIVE ID FAN TELEMETRY DATA:
-        - Fan Speed: {speed_rpm:.0f} RPM
-        - Inlet Guide Vane (IGV / Damper): {damper_pct:.0f}%
-        - Flue Gas Temperature: {flue_gas_temp:.0f} °C
-        - Volumetric Airflow: {flow_tph:,.1f} TPH
-        - Furnace Draft Suction: {draft_mmwc:.1f} mmWC
-        - HV Motor Active Power: {power_kw:.1f} kW
-        - HV Motor Line Current: {current_amps:.1f} A (6.6 kV rating)
-        - Bearing Vibration: {vibration_mm_sec:.2f} mm/sec
-        - Blade Aerodynamic Health: {blade_health:.0f}%
-        - Bearing Mechanical Health: {bearing_health:.0f}%
-        - Remaining Useful Life (RUL): {rul_days} Days
-        - Projected Maintenance Date: {next_maint_date.strftime('%B %d, %Y')}
-        """
-        
-        config = types.GenerateContentConfig(
-            system_instruction=system_instruction,
-            temperature=0.2,
-        )
-
-        response_stream = client.models.generate_content_stream(
-            model="gemini-3.8-flash",
-            contents=query,
-            config=config
-        )
-        
-        for chunk in response_stream:
-            if chunk.text:
-                yield chunk.text
-
+        available_models = [m.name for m in client.models.list() if "generateContent" in getattr(m, "supported_generation_methods", [])]
+        for active_m in available_models:
+            clean_name = active_m.replace("models/", "")
+            try:
+                res = client.models.generate_content(
+                    model=clean_name,
+                    contents=query,
+                    config=config
+                )
+                if res and res.text:
+                    return res.text
+            except Exception:
+                continue
     except Exception as e:
-        yield f"🚨 **Error contacting Gemini backend:** {str(e)}"
+        return f"🚨 **Error querying available Gemini models:** {str(e)}"
+
+    return "🚨 **Model Error**: Unable to reach a compatible Gemini model. Please try again in a few moments."
 
 # --- Custom Metric Card Generator ---
 def custom_metric_card(icon_svg, icon_bg, label, value, unit, subtext):
@@ -363,16 +383,15 @@ with tab_chat:
         with st.chat_message("user"):
             st.markdown(user_prompt)
 
+        with st.spinner("Gemini is analyzing fan telemetry..."):
+            bot_reply = ask_gemini_backend(user_prompt)
+
+        st.session_state.chat_messages.append({"role": "assistant", "content": bot_reply})
         with st.chat_message("assistant"):
-            full_response = st.write_stream(stream_gemini_response(user_prompt))
+            st.markdown(bot_reply)
 
-        st.session_state.chat_messages.append({"role": "assistant", "content": full_response})
-
-# --- Sidebar Auto-Stream Controls ---
 st.sidebar.markdown("---")
 auto_stream = st.sidebar.checkbox("Auto-Stream Live Telemetry", value=True)
-
-# Only rerun telemetry if explicitly enabled
 if auto_stream:
     time.sleep(0.4)
     st.rerun()
