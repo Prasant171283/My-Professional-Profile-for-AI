@@ -354,7 +354,7 @@ with tab_dashboard:
         ax2.set_ylabel("Power (kW)", fontsize=9, color="#0f766e", weight="bold")
 
         ax3.plot(st.session_state.history["Vibration_mms"].values, color="#d97706", lw=2)
-        ax3.axhline(y=19.0, color='r', linestyle='--', label='Trip Limit (19 mm/s)')
+        #ax3.axhline(y=19.0, color='r', linestyle='--', label='Trip Limit (19 mm/s)')
         ax3.set_ylabel("Vib (mm/sec)", fontsize=9, color="#d97706", weight="bold")
         ax3.set_xlabel("Time Step Buffer", fontsize=8, color="#334155")
 
