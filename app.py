@@ -20,10 +20,7 @@ st.set_page_config(
 # --- Custom CSS: Fixed Spacing & Corporate Styling ---
 st.markdown("""
     <style>
-        /* Hide default Streamlit header bar space */
         header[data-testid="stHeader"] { height: 0px !important; background: transparent !important; }
-
-        /* Soft ice-blue background with proper top margin */
         .stApp { background-color: #e6eff8 !important; }
         .block-container { 
             padding-top: 2.2rem !important; 
@@ -31,19 +28,15 @@ st.markdown("""
             padding-left: 1.5rem !important; 
             padding-right: 1.5rem !important; 
         }
-        
-        /* Force Header & Title Text Visibility */
         h1, h2, h3, .stApp h1, .stApp h2, .stApp h3 { 
             color: #0b2545 !important; 
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif !important;
         }
-        
         .stMarkdown p, .stMarkdown span { 
             margin-bottom: 0.2rem !important; 
             font-size: 0.85rem !important; 
             color: #1e293b !important; 
         }
-        
         .stAlert { padding: 4px 8px !important; margin-bottom: 0px !important; font-size: 0.8rem !important; }
         hr { margin: 8px 0px !important; border-color: #cbd5e1 !important; }
         div[data-testid="stHorizontalBlock"] { align-items: stretch !important; }
@@ -67,8 +60,8 @@ if "chat_messages" not in st.session_state:
 
 # --- Sidebar Controls ---
 st.sidebar.header("🕹️ Operational Controls")
-speed_rpm = st.sidebar.slider("Fan Speed (RPM)", 300, 1200, 980, 10)
-damper_pct = st.sidebar.slider("Damper / IGV (%)", 0, 100, 75, 1)
+speed_rpm = st.sidebar.slider("Fan Speed (RPM)", 200, 700, 450, 5)
+damper_pct = st.sidebar.slider("Damper / IGV Opening (%)", 0, 100, 85, 1)
 flue_gas_temp = st.sidebar.slider("Flue Gas Temp (°C)", 90, 220, 145, 1)
 
 st.sidebar.markdown("---")
@@ -95,57 +88,63 @@ st.session_state.rotation_angle = (st.session_state.rotation_angle + (speed_rpm 
 
 # --- Telemetry Engine ---
 def calculate_telemetry(speed, damper, temp, blade_h, bearing_h):
-    rho_gas = 1.293 * (273.15 / (273.15 + temp))
     blade_eff = blade_h / 100.0
-    flow = (speed / 1000.0) * (damper / 100.0) * 450000.0 * blade_eff + random.uniform(-500, 500)
-    draft = -1.0 * ((speed / 1000.0) ** 2) * (damper / 100.0) * (rho_gas / 1.0) * 350.0 * blade_eff + random.uniform(-1, 1)
-    total_eff = 0.82 * blade_eff
-    power = abs((flow / 3600.0) * (draft * 9.81) / (total_eff * 1000.0)) + random.uniform(-2, 2)
-    current = (power * 1000.0) / (1.732 * 6600.0 * 0.88)
+    base_flow = 500.0 + ((speed - 200.0) / 500.0) * 1200.0 * (damper / 100.0) * 1.15
+    flow_tph = min(2100.0, max(500.0, base_flow * blade_eff + random.uniform(-10.0, 10.0)))
     
-    unbalance_vib = ((100.0 - bearing_h) / 100.0) * 12.0 * (speed / 1000.0) ** 2
-    blade_unbalance = ((100.0 - blade_h) / 100.0) * 6.0
-    vibration = 1.2 * (speed / 1000.0) + unbalance_vib + blade_unbalance + random.uniform(-0.1, 0.1)
+    draft_mmwc = -5.0 + random.uniform(-0.4, 0.4)
     
-    return flow, draft, power, current, vibration
+    current_amps = (flow_tph / 1850.0) * 370.0 * (speed / 450.0) ** 0.5 + random.uniform(-3.0, 3.0)
+    current_amps = max(110.0, min(500.0, current_amps))
+    
+    power_kw = (1.732 * 6.6 * current_amps * 0.88) + random.uniform(-10.0, 10.0)
+    
+    unbalance_vib = ((100.0 - bearing_h) / 100.0) * 8.0 * (speed / 450.0)
+    blade_unbalance = ((100.0 - blade_h) / 100.0) * 5.0
+    vibration_mm_sec = 0.8 + (speed / 450.0) * 0.2 + unbalance_vib + blade_unbalance + random.uniform(-0.05, 0.05)
+    
+    return flow_tph, draft_mmwc, power_kw, current_amps, vibration_mm_sec
 
-flow, draft, power, current, vibration = calculate_telemetry(
+flow_tph, draft_mmwc, power_kw, current_amps, vibration_mm_sec = calculate_telemetry(
     speed_rpm, damper_pct, flue_gas_temp, blade_health, bearing_health
 )
 
 limiting_health = min(bearing_health, blade_health)
-speed_factor = (speed_rpm / 980.0) ** 1.5
+speed_factor = (speed_rpm / 450.0) ** 1.5
 temp_factor = 1.0 + (max(0, flue_gas_temp - 145.0) / 100.0)
 degradation_rate = 0.35 * speed_factor * temp_factor
 rul_days = int(max(0.0, limiting_health - 20.0) / degradation_rate) if degradation_rate > 0 else 999
 next_maint_date = datetime.now() + timedelta(days=rul_days)
 
-new_row = pd.DataFrame([{"Draft_mmWC": draft, "Power_kW": power, "Vibration_mms": vibration}])
+new_row = pd.DataFrame([{"Draft_mmWC": draft_mmwc, "Power_kW": power_kw, "Vibration_mms": vibration_mm_sec}])
 st.session_state.history = pd.concat([st.session_state.history, new_row], ignore_index=True).tail(35)
 
-# --- Robust Gemini API Backend Function ---
+# --- Dynamic & Resilient Gemini Backend ---
 def ask_gemini_backend(query):
     api_key = st.secrets.get("GEMINI_API_KEY", None)
-    
     if not api_key:
-        return "⚠️ **API Key Missing**: Please set `GEMINI_API_KEY` in Streamlit secrets to enable Gemini AI."
+        api_keys = st.secrets.get("GEMINI_API_KEYS", [])
+        api_key = api_keys[0] if api_keys else None
+
+    if not api_key:
+        return "⚠️ **API Key Missing**: Please set `GEMINI_API_KEY` in Streamlit secrets."
 
     client = genai.Client(api_key=api_key)
     
     system_instruction = f"""
     You are an expert Thermal Power Plant Mechanical Engineer and Digital Twin AI Specialist.
-    Answer user questions clearly and concisely using real power plant fan physics, Fan Affinity Laws, and maintenance protocols.
+    Answer the user's specific question directly based on real power plant fan physics.
     
     LIVE ID FAN TELEMETRY DATA:
     - Fan Speed: {speed_rpm:.0f} RPM
     - Inlet Guide Vane (IGV / Damper): {damper_pct:.0f}%
     - Flue Gas Temperature: {flue_gas_temp:.0f} °C
-    - Volumetric Gas Flow Rate: {flow:,.0f} m³/h
-    - Furnace Suction Pressure (Draft): {draft:.1f} mmWC
-    - HV Motor Active Power: {power:.1f} kW
-    - HV Motor Line Current: {current:.1f} A (6.6 kV rating)
-    - Bearing RMS Vibration: {vibration:.2f} mm/s
-    - Blade Aerodynamic Condition: {blade_health:.0f}%
+    - Volumetric Airflow: {flow_tph:,.1f} TPH
+    - Furnace Draft Suction: {draft_mmwc:.1f} mmWC
+    - HV Motor Active Power: {power_kw:.1f} kW
+    - HV Motor Line Current: {current_amps:.1f} A (6.6 kV rating)
+    - Bearing Vibration: {vibration_mm_sec:.2f} mm/sec
+    - Blade Aerodynamic Health: {blade_health:.0f}%
     - Bearing Mechanical Health: {bearing_health:.0f}%
     - Remaining Useful Life (RUL): {rul_days} Days
     - Projected Maintenance Date: {next_maint_date.strftime('%B %d, %Y')}
@@ -156,39 +155,27 @@ def ask_gemini_backend(query):
         temperature=0.3,
     )
 
-    # Preferred candidate models in order of priority
-    model_candidates = ["gemini-3.7-flash", "gemini-3.5-flash", "gemini-flash-latest"]
+    model_candidates = ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-3.8-flash"]
+    last_error = ""
 
-    # Strategy 1: Attempt generation with candidate model names
-    for m_name in model_candidates:
-        try:
-            res = client.models.generate_content(
-                model=m_name,
-                contents=query,
-                config=config
-            )
-            return res.text
-        except Exception:
-            continue
-
-    # Strategy 2: Dynamically query the API for active model names matching your key
-    try:
-        available_models = [m.name for m in client.models.list() if "generateContent" in getattr(m, "supported_generation_methods", [])]
-        for active_m in available_models:
-            clean_name = active_m.replace("models/", "")
+    for model_id in model_candidates:
+        for attempt in range(2):
             try:
                 res = client.models.generate_content(
-                    model=clean_name,
+                    model=model_id,
                     contents=query,
                     config=config
                 )
-                return res.text
-            except Exception:
-                continue
-    except Exception as e:
-        return f"🚨 **Error querying available Gemini models:** {str(e)}"
+                if res and res.text:
+                    return res.text
+            except Exception as e:
+                last_error = str(e)
+                if "503" in last_error or "UNAVAILABLE" in last_error:
+                    time.sleep(1.0)
+                    continue
+                break
 
-    return "🚨 **Model Error**: Unable to reach a compatible Gemini model on your API key. Please check your Google AI Studio quota."
+    return f"🚨 **API Error:** `{last_error}`\n\nPlease verify your key at Google AI Studio or uncheck *Auto-Stream Live Telemetry*."
 
 # --- Custom Metric Card Generator ---
 def custom_metric_card(icon_svg, icon_bg, label, value, unit, subtext):
@@ -260,12 +247,12 @@ date_icon = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke=
 
 # --- Metric Cards Row ---
 m1, m2, m3, m4, m5, m6 = st.columns(6)
-m1.markdown(custom_metric_card(fan_icon, "#e0f2fe", "FLOW RATE", f"{flow:,.0f}", "m³/h", "Operational Output"), unsafe_allow_html=True)
-m2.markdown(custom_metric_card(draft_icon, "#fef3c7", "FURNACE DRAFT", f"{draft:.1f}", "mmWC", "Suction Pressure"), unsafe_allow_html=True)
-m3.markdown(custom_metric_card(power_icon, "#e0f2fe", "MOTOR POWER", f"{power:.1f}", "kW", "Active Load"), unsafe_allow_html=True)
-m4.markdown(custom_metric_card(current_icon, "#dcfce7", "CURRENT", f"{current:.1f}", "A", "6.6 kV Line Draw"), unsafe_allow_html=True)
-m5.markdown(custom_metric_card(rul_icon, "#dbeafe", "USEFUL LIFE", f"{rul_days}", "Days", "Prognosis RUL"), unsafe_allow_html=True)
-m6.markdown(custom_metric_card(date_icon, "#fee2e2", "NEXT MAINT.", next_maint_date.strftime("%b %d"), next_maint_date.strftime("%Y"), "Target Schedule"), unsafe_allow_html=True)
+m1.markdown(custom_metric_card(fan_icon, "#e0f2fe", "AIRFLOW", f"{flow_tph:,.1f}", "TPH", "500-2,100 TPH Range"), unsafe_allow_html=True)
+m2.markdown(custom_metric_card(draft_icon, "#fef3c7", "FURNACE DRAFT", f"{draft_mmwc:.1f}", "mmWC", "Target -5 mmWC"), unsafe_allow_html=True)
+m3.markdown(custom_metric_card(power_icon, "#e0f2fe", "MOTOR POWER", f"{power_kw:,.0f}", "kW", "Active Power Draw"), unsafe_allow_html=True)
+m4.markdown(custom_metric_card(current_icon, "#dcfce7", "CURRENT", f"{current_amps:.1f}", "A", "6.6 kV Line Rating"), unsafe_allow_html=True)
+m5.markdown(custom_metric_card(rul_icon, "#dbeafe", "BEARING VIB.", f"{vibration_mm_sec:.2f}", "mm/sec", "Trip @ 19 mm/sec"), unsafe_allow_html=True)
+m6.markdown(custom_metric_card(date_icon, "#fee2e2", "NEXT MAINT.", next_maint_date.strftime("%b %d"), next_maint_date.strftime("%Y"), f"RUL: {rul_days} Days"), unsafe_allow_html=True)
 
 st.markdown("<div style='margin-bottom: 8px;'></div>", unsafe_allow_html=True)
 
@@ -279,7 +266,7 @@ with tab_dashboard:
         st.markdown("<h3 style='color:#0b2545 !important; font-weight:800; font-size:1.05rem; margin-bottom: 6px;'>🖥️ Digital Twin Schematic Diagram</h3>", unsafe_allow_html=True)
         
         def render_fan_svg(angle, damper_val, vib_val):
-            bearing_color = "#16a34a" if vib_val < 4.5 else ("#d97706" if vib_val < 7.1 else "#dc2626")
+            bearing_color = "#16a34a" if vib_val < 4.5 else ("#d97706" if vib_val < 19.0 else "#dc2626")
             damper_angle = (1.0 - (damper_val / 100.0)) * 75
             
             blade_svg = ""
@@ -308,24 +295,24 @@ with tab_dashboard:
                 <rect x="290" y="145" width="50" height="60" rx="4" fill="{bearing_color}" stroke="#ffffff" stroke-width="2"/>
                 <text x="293" y="132" fill="#0b2545" font-size="12" font-family="sans-serif" font-weight="bold">BEARING</text>
                 <rect x="380" y="125" width="120" height="95" rx="6" fill="#0b2545" stroke="#0f766e" stroke-width="2"/>
-                <text x="395" y="177" fill="#ffffff" font-size="13" font-family="sans-serif" font-weight="bold">HV MOTOR</text>
+                <text x="395" y="177" fill="#ffffff" font-size="13" font-family="sans-serif" font-weight="bold">6.6 kV MOTOR</text>
                 <rect x="380" y="20" width="230" height="80" fill="none" stroke="#94a3b8" stroke-width="2"/>
                 <text x="430" y="60" fill="#0b2545" font-size="13" font-family="sans-serif" font-weight="bold">TO ESP / CHIMNEY</text>
             </svg>
             </div>
             """
 
-        st.components.v1.html(render_fan_svg(st.session_state.rotation_angle, damper_pct, vibration), height=358)
+        st.components.v1.html(render_fan_svg(st.session_state.rotation_angle, damper_pct, vibration_mm_sec), height=358)
 
         st.markdown("<h3 style='color:#0b2545 !important; font-weight:800; font-size:1.05rem; margin-bottom: 6px;'>🛠️ Prescriptive Action Plan</h3>", unsafe_allow_html=True)
         act1, act2 = st.columns(2)
         with act1:
-            if bearing_health < 50:
-                st.error("Bearing: Critical wear. Schedule sleeve replacement.")
-            elif bearing_health < 80:
-                st.warning("Bearing: Flush lube oil & check alignment.")
+            if vibration_mm_sec >= 19.0:
+                st.error("🚨 EMERGENCY TRIP: Bearing vibration exceeded 19.0 mm/sec!")
+            elif bearing_health < 50 or vibration_mm_sec > 4.5:
+                st.warning("Bearing: High vibration. Schedule sleeve inspection & alignment.")
             else:
-                st.success("Bearing: Condition optimal.")
+                st.success("Bearing: Condition optimal (< 4.5 mm/sec).")
         with act2:
             if blade_health < 50:
                 st.error("Blades: High ash load. Execute soot blowing & weld buildup.")
@@ -347,15 +334,22 @@ with tab_dashboard:
             ax.yaxis.label.set_color('#334155')
             ax.grid(True, linestyle="--", alpha=0.5, color="#cbd5e1")
 
+        # --- Subplot 1: Draft (Fixed Y-Axis: -10 to 2 mmWC) ---
         ax1.plot(st.session_state.history["Draft_mmWC"].values, color="#0b2545", lw=2)
         ax1.set_ylabel("Draft (mmWC)", fontsize=9, color="#0b2545", weight="bold")
+        ax1.set_ylim(-10.0, 2.0)
 
+        # --- Subplot 2: Power (Fixed Y-Axis: 0 to 3000 kW) ---
         ax2.plot(st.session_state.history["Power_kW"].values, color="#0f766e", lw=2)
         ax2.set_ylabel("Power (kW)", fontsize=9, color="#0f766e", weight="bold")
+        ax2.set_ylim(0.0, 3000.0)
 
+        # --- Subplot 3: Vibration (Fixed Y-Axis: 0 to 22 mm/s) ---
         ax3.plot(st.session_state.history["Vibration_mms"].values, color="#d97706", lw=2)
-        ax3.set_ylabel("Vib (mm/s)", fontsize=9, color="#d97706", weight="bold")
+        ax3.axhline(y=19.0, color='r', linestyle='--', label='Trip Limit (19 mm/s)')
+        ax3.set_ylabel("Vib (mm/sec)", fontsize=9, color="#d97706", weight="bold")
         ax3.set_xlabel("Time Step Buffer", fontsize=8, color="#334155")
+        ax3.set_ylim(0.0, 22.0)
 
         plt.tight_layout(pad=0.5)
         st.pyplot(fig, use_container_width=True)
@@ -380,9 +374,8 @@ with tab_chat:
         with st.chat_message("assistant"):
             st.markdown(bot_reply)
 
-# Sidebar checkbox to toggle live streaming cleanly
 st.sidebar.markdown("---")
-auto_stream = st.sidebar.checkbox("Auto-Stream Live Telemetry", value=True)
+auto_stream = st.sidebar.checkbox("Auto-Stream Live Telemetry", value=False)
 if auto_stream:
     time.sleep(0.4)
     st.rerun()
