@@ -123,43 +123,72 @@ next_maint_date = datetime.now() + timedelta(days=rul_days)
 new_row = pd.DataFrame([{"Draft_mmWC": draft, "Power_kW": power, "Vibration_mms": vibration}])
 st.session_state.history = pd.concat([st.session_state.history, new_row], ignore_index=True).tail(35)
 
-# --- Gemini API Backend AI Response Function ---
+# --- Robust Gemini API Backend Function ---
 def ask_gemini_backend(query):
     api_key = st.secrets.get("GEMINI_API_KEY", None)
     
     if not api_key:
         return "⚠️ **API Key Missing**: Please set `GEMINI_API_KEY` in Streamlit secrets to enable Gemini AI."
 
+    client = genai.Client(api_key=api_key)
+    
+    system_instruction = f"""
+    You are an expert Thermal Power Plant Mechanical Engineer and Digital Twin AI Specialist.
+    Answer user questions clearly and concisely using real power plant fan physics, Fan Affinity Laws, and maintenance protocols.
+    
+    LIVE ID FAN TELEMETRY DATA:
+    - Fan Speed: {speed_rpm:.0f} RPM
+    - Inlet Guide Vane (IGV / Damper): {damper_pct:.0f}%
+    - Flue Gas Temperature: {flue_gas_temp:.0f} °C
+    - Volumetric Gas Flow Rate: {flow:,.0f} m³/h
+    - Furnace Suction Pressure (Draft): {draft:.1f} mmWC
+    - HV Motor Active Power: {power:.1f} kW
+    - HV Motor Line Current: {current:.1f} A (6.6 kV rating)
+    - Bearing RMS Vibration: {vibration:.2f} mm/s
+    - Blade Aerodynamic Condition: {blade_health:.0f}%
+    - Bearing Mechanical Health: {bearing_health:.0f}%
+    - Remaining Useful Life (RUL): {rul_days} Days
+    - Projected Maintenance Date: {next_maint_date.strftime('%B %d, %Y')}
+    """
+    
+    config = types.GenerateContentConfig(
+        system_instruction=system_instruction,
+        temperature=0.3,
+    )
+
+    # Preferred candidate models in order of priority
+    model_candidates = ["gemini-3.7-flash", "gemini-3.5-flash", "gemini-flash-latest"]
+
+    # Strategy 1: Attempt generation with candidate model names
+    for m_name in model_candidates:
+        try:
+            res = client.models.generate_content(
+                model=m_name,
+                contents=query,
+                config=config
+            )
+            return res.text
+        except Exception:
+            continue
+
+    # Strategy 2: Dynamically query the API for active model names matching your key
     try:
-        client = genai.Client(api_key=api_key)
-        
-        system_instruction = f"""
-        You are an expert Thermal Power Plant Mechanical Engineer and Digital Twin AI Specialist.
-        Answer user questions clearly and concisely using real power plant fan physics, Fan Affinity Laws, and maintenance protocols.
-        
-        LIVE ID FAN TELEMETRY DATA:
-        - Fan Speed: {speed_rpm:.0f} RPM
-        - Inlet Guide Vane (IGV / Damper): {damper_pct:.0f}%
-        - Flue Gas Temperature: {flue_gas_temp:.0f} °C
-        - Volumetric Gas Flow Rate: {flow:,.0f} m³/h
-        - Furnace Suction Pressure (Draft): {draft:.1f} mmWC
-        - HV Motor Active Power: {power:.1f} kW
-        - HV Motor Line Current: {current:.1f} A (6.6 kV rating)
-        - Bearing RMS Vibration: {vibration:.2f} mm/s
-        - Blade Aerodynamic Condition: {blade_health:.0f}%
-        - Bearing Mechanical Health: {bearing_health:.0f}%
-        - Remaining Useful Life (RUL): {rul_days} Days
-        - Projected Maintenance Date: {next_maint_date.strftime('%B %d, %Y')}
-        """
-        
-        # Using supported model endpoint gemini-2.5-flash
-        response = client.models.generate_content(
-            model="gemini-2.5-flash",
-            contents=query,
-            config=types.GenerateContentConfig(
-                system_instruction=system_instruction,
-                temperature=0.3,
-*
+        available_models = [m.name for m in client.models.list() if "generateContent" in getattr(m, "supported_generation_methods", [])]
+        for active_m in available_models:
+            clean_name = active_m.replace("models/", "")
+            try:
+                res = client.models.generate_content(
+                    model=clean_name,
+                    contents=query,
+                    config=config
+                )
+                return res.text
+            except Exception:
+                continue
+    except Exception as e:
+        return f"🚨 **Error querying available Gemini models:** {str(e)}"
+
+    return "🚨 **Model Error**: Unable to reach a compatible Gemini model on your API key. Please check your Google AI Studio quota."
 
 # --- Custom Metric Card Generator ---
 def custom_metric_card(icon_svg, icon_bg, label, value, unit, subtext):
@@ -332,10 +361,9 @@ with tab_dashboard:
         st.pyplot(fig, use_container_width=True)
 
 with tab_chat:
-    st.markdown("<h3 style='color:#0b2545 !important; font-weight:800; font-size:1.1rem;'>💬 ID Fan AI Technical Assistant (Gemini Backend)</h3>", unsafe_allow_html=True)
+    st.markdown("<h3 style='color:#0b2545 !important; font-weight:800; font-size:1.1rem;'>💬 ID Fan AI Technical Assistant (Gemini Powered)</h3>", unsafe_allow_html=True)
     st.caption("Ask contextual questions regarding real-time telemetry, fan mechanics, power reduction strategies, or failure troubleshooting.")
 
-    # Render Chat History
     for msg in st.session_state.chat_messages:
         with st.chat_message(msg["role"]):
             st.markdown(msg["content"])
