@@ -334,7 +334,7 @@ with tab_dashboard:
             else:
                 st.success("Blades: Aerodynamics nominal.")
 
-    with col_right:
+     with col_right:
         st.markdown("<h3 style='color:#0b2545 !important; font-weight:800; font-size:1.05rem; margin-bottom: 6px;'>📊 Live Telemetry Trends</h3>", unsafe_allow_html=True)
         
         fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(6.5, 5.1), sharex=True)
@@ -347,18 +347,26 @@ with tab_dashboard:
             ax.yaxis.label.set_color('#334155')
             ax.grid(True, linestyle="--", alpha=0.5, color="#cbd5e1")
 
+        # --- Subplot 1: Draft (Fixed Y-Axis: -10 to 2 mmWC) ---
         ax1.plot(st.session_state.history["Draft_mmWC"].values, color="#0b2545", lw=2)
         ax1.set_ylabel("Draft (mmWC)", fontsize=9, color="#0b2545", weight="bold")
+        ax1.set_ylim(-10.0, 2.0)
 
+        # --- Subplot 2: Power (Fixed Y-Axis: 0 to 3000 kW) ---
         ax2.plot(st.session_state.history["Power_kW"].values, color="#0f766e", lw=2)
         ax2.set_ylabel("Power (kW)", fontsize=9, color="#0f766e", weight="bold")
+        ax2.set_ylim(0.0, 3000.0)
 
+        # --- Subplot 3: Vibration (Fixed Y-Axis: 0 to 22 mm/s) ---
         ax3.plot(st.session_state.history["Vibration_mms"].values, color="#d97706", lw=2)
-        ax3.set_ylabel("Vib (mm/s)", fontsize=9, color="#d97706", weight="bold")
+        ax3.axhline(y=19.0, color='r', linestyle='--', label='Trip Limit (19 mm/s)')
+        ax3.set_ylabel("Vib (mm/sec)", fontsize=9, color="#d97706", weight="bold")
         ax3.set_xlabel("Time Step Buffer", fontsize=8, color="#334155")
+        ax3.set_ylim(0.0, 22.0)
 
         plt.tight_layout(pad=0.5)
         st.pyplot(fig, use_container_width=True)
+
 
 with tab_chat:
     st.markdown("<h3 style='color:#0b2545 !important; font-weight:800; font-size:1.1rem;'>💬 ID Fan AI Technical Assistant (Gemini Powered)</h3>", unsafe_allow_html=True)
